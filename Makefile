@@ -120,6 +120,26 @@ build-arm64: ## Build device worker for arm64
 
 ##@ Deployment
 
+# Target to install SQLite
+install_sqlite:
+	sudo dnf install sqlite
+
+# Target to create the database and tables
+create_database:
+	echo "CREATE TABLE IF NOT EXISTS device (" >> leafdevices.sql
+	echo "    id INTEGER PRIMARY KEY," >> leafdevices.sql
+	echo "    name TEXT NOT NULL," >> leafdevices.sql
+	echo "    manufacturer TEXT NULL," >> leafdevices.sql
+	echo "    model TEXT NULL," >> leafdevices.sql
+	echo "    sw_version TEXT NULL," >> leafdevices.sql
+	echo "    identifiers TEXT NULL," >> leafdevices.sql
+	echo "    protocol TEXT NULL," >> leafdevices.sql
+	echo "    connection TEXT NULL," >> leafdevices.sql
+	echo "    battery TEXT NULL" >> leafdevices.sql
+	echo ");" >> leafdevices.sql
+	sqlite3 flotta.db < leafdevices.sql
+
+
 install-worker-config:
 	mkdir -p $(BUILDROOT)$(SYSCONFDIR)/yggdrasil/workers/
 	mkdir -p $(BUILDROOT)$(SYSCONFDIR)/yggdrasil/device/volumes

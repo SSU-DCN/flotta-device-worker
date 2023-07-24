@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os/signal"
 	"os/user"
@@ -9,6 +11,7 @@ import (
 	"strconv"
 	"syscall"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/project-flotta/flotta-device-worker/internal/ansible"
 	configuration2 "github.com/project-flotta/flotta-device-worker/internal/configuration"
 	"github.com/project-flotta/flotta-device-worker/internal/datatransfer"
@@ -136,6 +139,9 @@ func main() {
 		log.Fatalf("cannot start listening on %s err: %v", r.GetAddress(), err)
 	}
 
+	// fmt.Println("HAHAHAHA")
+	// log.Info("HAHAHAH3332435dfsggggggA") //works gere
+
 	// Register as a Worker service with gRPC and start accepting connections.
 	dataDir := path.Join(baseDataDir, "device")
 	log.Infof("Data directory: %s", dataDir)
@@ -227,6 +233,11 @@ func main() {
 		}
 	}
 
+	go func() {
+		fmt.Println("HAHAHAHA")
+		mqttSqlite()
+	}()
+
 	hbs := heartbeat2.NewHeartbeatService(dispatcherClient, configManager, wl, &hw, ansibleManager, dataMonitor, deviceOs, reg)
 	configManager.RegisterObserver(hbs)
 
@@ -311,4 +322,83 @@ func closeComponents(metricsStore *metrics.TSDB, ansibleManager *ansible.Manager
 	if ansibleManager != nil {
 		ansibleManager.WaitPlaybookCompletion()
 	}
+}
+
+//EXTENDED NEW CODE
+const (
+	mqttBroker   = "tcp://localhost:1883"
+	mqttUsername = "flotta"
+	mqttPassword = "flotta"
+	sqliteDBFile = "flotta.db"
+)
+
+type SensorData struct {
+	Temperature float64 `json:"temperature"`
+	Humidity    float64 `json:"humidity"`
+}
+
+func mqttSqlite() {
+	log.Infoln("	MQTT HERE")
+
+	opts := mqtt.NewClientOptions()
+	opts.AddBroker(mqttBroker)
+	opts.SetClientID("mqtt_to_sqlite_client")
+	opts.SetUsername(mqttUsername)
+	opts.SetPassword(mqttPassword)
+
+	client := mqtt.NewClient(opts)
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		log.Errorf("Failed to connect to MQTT broker: %s", token.Error())
+		return
+	}
+
+	topic := "device/#"
+	if token := client.Subscribe(topic, 0, OnMessageReceived); token.Wait() && token.Error() != nil {
+		fmt.Println("Failed to subscribe to MQTT topic:", token.Error())
+		log.Errorf("Failed to subscribe to MQTT topic: %s\n", token.Error())
+		return
+	}
+
+	// Keep the program running to receive messages
+	// select {}
+}
+
+func insertDataToSQLite(data SensorData, db *sql.DB) error {
+	stmt, err := db.Prepare("INSERT INTO sensor_data (temperature, humidity) VALUES (?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(data.Temperature, data.Humidity)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
+	log.Infof("Received Topic: %s\n", msg.Topic())
+	log.Infof("Received message: %s\n", msg.Payload())
+	// Parse the received message (assuming it's in JSON format)
+	var data SensorData
+	if err := json.Unmarshal(msg.Payload(), &data); err != nil {
+		log.Println("Error parsing message:", err)
+		log.Errorf("Error parsing message: %s\n", err.Error())
+		return
+	}
+
+	// // Connect to SQLite database
+	// db, err := sql.Open("sqlite3", sqliteDBFile)
+	// if err != nil {
+	// 	log.Println("Error connecting to SQLite database:", err)
+	// 	return
+	// }
+	// defer db.Close()
+
+	// // Insert data into the SQLite database
+	// if err := insertDataToSQLite(data, db); err != nil {
+	// 	log.Println("Error inserting data to SQLite database:", err)
+	// }
 }

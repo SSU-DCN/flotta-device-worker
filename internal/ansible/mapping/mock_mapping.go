@@ -49,7 +49,7 @@ func (mr *MockMappingRepositoryMockRecorder) Add(arg0, arg1, arg2, arg3 interfac
 }
 
 // Exists mocks base method.
-func (m *MockMappingRepository) Exists(arg0 time.Time) bool {
+func (m *MockMappingRepository) Exists(arg0 string) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Exists", arg0)
 	ret0, _ := ret[0].(bool)
