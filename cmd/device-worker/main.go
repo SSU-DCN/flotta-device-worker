@@ -332,13 +332,65 @@ const (
 	sqliteDBFile = "flotta.db"
 )
 
+//data comes in this format
+// {
+// 	"device":{
+// 	"name":"DHTSensor",
+// 	"manufacturer":"NodeMCU Amica",
+// 	"model":"DHT11",
+// 	"sw_version":"1.0.0",
+// 	"identifiers":"ESP8266",
+// 	"via_device":"MQTT",
+// 	"connection":"Wi-Fi"
+// 	},
+// 	"readings":{
+// 		"temperature":"27.10",
+// 		"humidity":"55.00"
+// 	}
+// }
+
+// Data represents the entire JSON data
 type SensorData struct {
-	Temperature float64 `json:"temperature"`
-	Humidity    float64 `json:"humidity"`
+	Device   Device   `json:"device"`
+	Readings Readings `json:"readings"`
+	State    State    `json:"state"`
+}
+
+//general device information
+type Device struct {
+	Name         string `json:"name"`
+	Manufacturer string `json:"manufacturer"`
+	Model        string `json:"model"`
+	SWVersion    string `json:"sw_version"`
+	Identifiers  string `json:"identifiers"`
+	Protocol     string `json:"protocol"`
+	Connection   string `json:"connection"`
+}
+
+//information/state of attached sensor
+type Readings struct {
+	Name         string `json:"name"`
+	Manufacturer string `json:"manufacturer"`
+	Model        string `json:"model"`
+	SWVersion    string `json:"sw_version"`
+	Identifiers  string `json:"identifiers"`
+	Protocol     string `json:"protocol"`
+	Connection   string `json:"connection"`
+}
+
+//information/state of attached switches or actuators
+type State struct {
+	Name         string `json:"name"`
+	Manufacturer string `json:"manufacturer"`
+	Model        string `json:"model"`
+	SWVersion    string `json:"sw_version"`
+	Identifiers  string `json:"identifiers"`
+	Protocol     string `json:"protocol"`
+	Connection   string `json:"connection"`
 }
 
 func mqttSqlite() {
-	log.Infoln("	MQTT HERE")
+	log.Infoln("MQTT HERE")
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(mqttBroker)
@@ -370,10 +422,10 @@ func insertDataToSQLite(data SensorData, db *sql.DB) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(data.Temperature, data.Humidity)
-	if err != nil {
-		return err
-	}
+	// _, err = stmt.Exec(data.Temperature, data.Humidity)
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -382,12 +434,49 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 	log.Infof("Received Topic: %s\n", msg.Topic())
 	log.Infof("Received message: %s\n", msg.Payload())
 	// Parse the received message (assuming it's in JSON format)
-	var data SensorData
-	if err := json.Unmarshal(msg.Payload(), &data); err != nil {
-		log.Println("Error parsing message:", err)
-		log.Errorf("Error parsing message: %s\n", err.Error())
+	// Create a variable to unmarshal JSON data into a generic structure
+	var dataMap map[string]interface{}
+
+	// Unmarshal the JSON data into the 'dataMap' variable
+	err := json.Unmarshal([]byte(msg.Payload()), &dataMap)
+	if err != nil {
+		fmt.Println("Error parsing JSON:", err)
 		return
 	}
+
+	// Access and print the parsed device data
+	if deviceData, ok := dataMap["device"].(map[string]interface{}); ok {
+		device := Device{
+			Name:         getStringValue(deviceData, "name"),
+			Manufacturer: getStringValue(deviceData, "manufacturer"),
+			Model:        getStringValue(deviceData, "model"),
+			SWVersion:    getStringValue(deviceData, "sw_version"),
+			Identifiers:  getStringValue(deviceData, "identifiers"),
+			Protocol:     getStringValue(deviceData, "protocol"),
+			Connection:   getStringValue(deviceData, "connection"),
+		}
+		fmt.Println("Device Name:", device.Name)
+		fmt.Println("Manufacturer:", device.Manufacturer)
+		fmt.Println("Model:", device.Model)
+		fmt.Println("Software Version:", device.SWVersion)
+		fmt.Println("Identifiers:", device.Identifiers)
+		fmt.Println("Protocol:", device.Protocol)
+		fmt.Println("Connection:", device.Connection)
+	} else {
+		fmt.Println("Device data not found in the JSON.")
+	}
+
+	// Access and print the parsed readings data
+	// if readingsData, ok := dataMap["readings"].(map[string]interface{}); ok {
+	// 	readings := Readings{
+	// 		Temperature: getStringValue(readingsData, "temperature"),
+	// 		Humidity:    getStringValue(readingsData, "humidity"),
+	// 	}
+	// 	fmt.Println("Temperature:", readings.Temperature)
+	// 	fmt.Println("Humidity:", readings.Humidity)
+	// } else {
+	// 	fmt.Println("Readings data not found in the JSON.")
+	// }
 
 	// // Connect to SQLite database
 	// db, err := sql.Open("sqlite3", sqliteDBFile)
@@ -401,4 +490,14 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 	// if err := insertDataToSQLite(data, db); err != nil {
 	// 	log.Println("Error inserting data to SQLite database:", err)
 	// }
+}
+
+// getStringValue is a helper function to safely retrieve string values from a map
+func getStringValue(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if strVal, ok := val.(string); ok {
+			return strVal
+		}
+	}
+	return ""
 }
