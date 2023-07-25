@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -30,6 +31,7 @@ import (
 	"path"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	pb "github.com/redhatinsights/yggdrasil/protocol"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -41,6 +43,7 @@ var gracefulRebootChannel chan struct{}
 
 const (
 	defaultDataDir = "/var/local/yggdrasil"
+	dbFile         = "flotta.db"
 )
 
 func initSystemdDirectory() error {
@@ -139,8 +142,8 @@ func main() {
 		log.Fatalf("cannot start listening on %s err: %v", r.GetAddress(), err)
 	}
 
-	// fmt.Println("HAHAHAHA")
-	// log.Info("HAHAHAH3332435dfsggggggA") //works gere
+	//presetup SQLite database for end nodes
+	setupSqliteDB()
 
 	// Register as a Worker service with gRPC and start accepting connections.
 	dataDir := path.Join(baseDataDir, "device")
@@ -234,7 +237,6 @@ func main() {
 	}
 
 	go func() {
-		fmt.Println("HAHAHAHA")
 		mqttSqlite()
 	}()
 
@@ -329,25 +331,7 @@ const (
 	mqttBroker   = "tcp://localhost:1883"
 	mqttUsername = "flotta"
 	mqttPassword = "flotta"
-	sqliteDBFile = "flotta.db"
 )
-
-//data comes in this format
-// {
-// 	"device":{
-// 	"name":"DHTSensor",
-// 	"manufacturer":"NodeMCU Amica",
-// 	"model":"DHT11",
-// 	"sw_version":"1.0.0",
-// 	"identifiers":"ESP8266",
-// 	"via_device":"MQTT",
-// 	"connection":"Wi-Fi"
-// 	},
-// 	"readings":{
-// 		"temperature":"27.10",
-// 		"humidity":"55.00"
-// 	}
-// }
 
 // Data represents the entire JSON data
 type SensorData struct {
@@ -365,6 +349,9 @@ type Device struct {
 	Identifiers  string `json:"identifiers"`
 	Protocol     string `json:"protocol"`
 	Connection   string `json:"connection"`
+	Battery      string `json:"battery"`
+	DeviceType   string `json:"device_type"`
+	// Availability   string `json:"availability"`
 }
 
 //information/state of attached sensor
@@ -415,81 +402,182 @@ func mqttSqlite() {
 	// select {}
 }
 
-func insertDataToSQLite(data SensorData, db *sql.DB) error {
-	stmt, err := db.Prepare("INSERT INTO sensor_data (temperature, humidity) VALUES (?, ?)")
+func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
+	log.Infof("Received Topic: %s\n", msg.Topic())
+	log.Infof("Received message: %s\n", msg.Payload())
+
+	if strings.Contains(msg.Topic(), "availability") {
+		log.Info("This is the availability topic, will do later!")
+	} else {
+
+		// Parse the received message (assuming it's in JSON format)
+		// Create a variable to unmarshal JSON data into a generic structure
+		var dataMap map[string]interface{}
+
+		// Unmarshal the JSON data into the 'dataMap' variable
+		err := json.Unmarshal([]byte(msg.Payload()), &dataMap)
+		if err != nil {
+			fmt.Println("Error parsing JSON:", err)
+			return
+		}
+
+		// Access and print the parsed device data
+		if deviceData, ok := dataMap["device"].(map[string]interface{}); ok {
+			device := Device{
+				Name:         getStringValue(deviceData, "name"),
+				Manufacturer: getStringValue(deviceData, "manufacturer"),
+				Model:        getStringValue(deviceData, "model"),
+				SWVersion:    getStringValue(deviceData, "sw_version"),
+				Identifiers:  getStringValue(deviceData, "identifiers"),
+				Protocol:     getStringValue(deviceData, "protocol"),
+				Connection:   getStringValue(deviceData, "connection"),
+			}
+
+			// Access and print the parsed readings data for sensor
+			if _, ok := dataMap["readings"].(map[string]interface{}); ok {
+				device.DeviceType = "Sensor"
+			} else {
+				fmt.Println("Readings data not found in the JSON.")
+			}
+
+			db, err := SQLiteConnect(dbFile)
+			if err != nil {
+				log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+			}
+			defer db.Close()
+			if !isEndNodeDeviceRecordExists(db, msg.Topic(), device) {
+				err = insertDataToSQLite(device, msg.Topic(), db)
+				if err != nil {
+					log.Errorf("Error inserting end node device record to local sqlite database: %s\n", err.Error())
+				} else {
+					log.Info("End node device information inserted")
+				}
+			} else {
+
+				log.Info("End node device already exists, updating it")
+				err = updateEndNodeDevice(db, msg.Topic(), device)
+				if err != nil {
+					log.Errorf("Error updating end node device record in local sqlite database: %s\n", err.Error())
+				} else {
+					log.Info("End node device information updated")
+				}
+			}
+
+		} else {
+			log.Info("Device data not found in the JSON.")
+		}
+	}
+
+}
+
+func insertDataToSQLite(data Device, topic string, db *sql.DB) error {
+
+	// Insert a record with timestamp into the table
+	timestamp := time.Now().Format(time.RFC3339)
+	insertSQL := "INSERT INTO EndNodeDevice (name, manufacturer, model, sw_version, identifiers, protocol, connection,battery, availability, topic, device_type, last_seen) VALUES (?, ?, ?,?, ?, ?,?, ?, ?,?, ?, ?);"
+	_, err := db.Exec(insertSQL, data.Name, data.Manufacturer, data.Model, data.SWVersion, data.Identifiers, data.Protocol,
+		data.Connection, data.Battery, "", topic, data.DeviceType, timestamp)
 	if err != nil {
+		log.Errorf("Error inserting data: %s", err.Error())
 		return err
 	}
-	defer stmt.Close()
-
-	// _, err = stmt.Exec(data.Temperature, data.Humidity)
-	// if err != nil {
-	// 	return err
-	// }
 
 	return nil
 }
 
-func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
-	log.Infof("Received Topic: %s\n", msg.Topic())
-	log.Infof("Received message: %s\n", msg.Payload())
-	// Parse the received message (assuming it's in JSON format)
-	// Create a variable to unmarshal JSON data into a generic structure
-	var dataMap map[string]interface{}
-
-	// Unmarshal the JSON data into the 'dataMap' variable
-	err := json.Unmarshal([]byte(msg.Payload()), &dataMap)
+func isEndNodeDeviceRecordExists(db *sql.DB, topic string, device Device) bool {
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM EndNodeDevice WHERE name = ? AND manufacturer = ? AND model =? AND identifiers=? AND topic=?", device.Name, device.Manufacturer, device.Model, device.Identifiers, topic).Scan(&count)
 	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+		log.Fatal(err)
+	}
+
+	return count > 0
+}
+
+func updateEndNodeDevice(db *sql.DB, topic string, device Device) error {
+	timestamp := time.Now().Format(time.RFC3339)
+	_, err := db.Exec("UPDATE EndNodeDevice SET last_seen = ? WHERE name = ? AND manufacturer = ? AND model =? AND identifiers=? AND topic=?", timestamp, device.Name, device.Manufacturer, device.Model, device.Identifiers, topic)
+	return err
+}
+
+//check if table exists or not then create on not for leafdevices
+func setupSqliteDB() {
+
+	log.Info("Setup end nodes sqlite local database")
+	// Check if the database file already exists
+	if _, err := os.Stat(dbFile); err == nil {
+		log.Error("Database file already exists, skipping creation...\n")
+	} else if os.IsNotExist(err) {
+		// Create the SQLite database file if it doesn't exist
+		file, err := os.Create(dbFile)
+		if err != nil {
+			log.Errorf("Error creating database file: %s \n", err.Error())
+			return
+		}
+		file.Close()
+		log.Info("Database file created successfully.")
+	} else {
+		log.Errorf("Error checking database file: %s \n", err.Error())
 		return
 	}
 
-	// Access and print the parsed device data
-	if deviceData, ok := dataMap["device"].(map[string]interface{}); ok {
-		device := Device{
-			Name:         getStringValue(deviceData, "name"),
-			Manufacturer: getStringValue(deviceData, "manufacturer"),
-			Model:        getStringValue(deviceData, "model"),
-			SWVersion:    getStringValue(deviceData, "sw_version"),
-			Identifiers:  getStringValue(deviceData, "identifiers"),
-			Protocol:     getStringValue(deviceData, "protocol"),
-			Connection:   getStringValue(deviceData, "connection"),
-		}
-		fmt.Println("Device Name:", device.Name)
-		fmt.Println("Manufacturer:", device.Manufacturer)
-		fmt.Println("Model:", device.Model)
-		fmt.Println("Software Version:", device.SWVersion)
-		fmt.Println("Identifiers:", device.Identifiers)
-		fmt.Println("Protocol:", device.Protocol)
-		fmt.Println("Connection:", device.Connection)
-	} else {
-		fmt.Println("Device data not found in the JSON.")
+	// Open a connection to the SQLite database
+
+	db, err := SQLiteConnect(dbFile)
+	if err != nil {
+		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+	}
+	defer db.Close()
+
+	// Create a table if it doesn't exist
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS EndNodeDevice (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		manufacturer TEXT NULL,
+		model TEXT NULL,
+		sw_version TEXT NULL,
+		identifiers TEXT NULL,
+		protocol TEXT NULL,
+		connection TEXT NULL,
+		battery TEXT NULL,
+		availability TEXT NULL,
+		topic TEXT NOT NULL,
+		device_type TEXT NULL,
+		readings TEXT NULL,
+		state TEXT NULL,
+		last_seen TEXT NOT NULL
+	);`
+
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		log.Errorf("Error creating table: %s \n", err.Error())
+		return
 	}
 
-	// Access and print the parsed readings data
-	// if readingsData, ok := dataMap["readings"].(map[string]interface{}); ok {
-	// 	readings := Readings{
-	// 		Temperature: getStringValue(readingsData, "temperature"),
-	// 		Humidity:    getStringValue(readingsData, "humidity"),
-	// 	}
-	// 	fmt.Println("Temperature:", readings.Temperature)
-	// 	fmt.Println("Humidity:", readings.Humidity)
-	// } else {
-	// 	fmt.Println("Readings data not found in the JSON.")
-	// }
+	log.Info("Table created successfully or already exists!")
+}
 
-	// // Connect to SQLite database
-	// db, err := sql.Open("sqlite3", sqliteDBFile)
-	// if err != nil {
-	// 	log.Println("Error connecting to SQLite database:", err)
-	// 	return
-	// }
-	// defer db.Close()
+func SQLiteConnect(dbFile string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", dbFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
+	}
 
-	// // Insert data into the SQLite database
-	// if err := insertDataToSQLite(data, db); err != nil {
-	// 	log.Println("Error inserting data to SQLite database:", err)
-	// }
+	// Set connection properties (optional)
+	db.SetMaxOpenConns(10) // Set the maximum number of open connections
+	db.SetMaxIdleConns(5)  // Set the maximum number of idle connections
+
+	// Perform a simple query to ensure the connection is valid
+	err = db.Ping()
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to ping the database: %w", err)
+	}
+
+	log.Info("Connected to SQLite database successfully")
+	return db, nil
 }
 
 // getStringValue is a helper function to safely retrieve string values from a map

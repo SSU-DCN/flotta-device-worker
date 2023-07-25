@@ -1,20 +1,15 @@
 /*
- * Copyright (c) 2013 IBM Corp and others.
+ * Copyright (c) 2013 IBM Corp.
  *
  * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v2.0
- * and Eclipse Distribution License v1.0 which accompany this distribution.
- *
- * The Eclipse Public License is available at
- *    https://www.eclipse.org/legal/epl-2.0/
- * and the Eclipse Distribution License is available at
- *   http://www.eclipse.org/org/documents/edl-v10.php.
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
  *    Seth Hoenig
  *    Allan Stockdill-Mander
  *    Mike Robertson
- *    Matt Brittan
  */
 
 package mqtt
@@ -31,7 +26,7 @@ import (
 type MId uint16
 
 type messageIds struct {
-	mu    sync.RWMutex // Named to prevent Mu from being accessible directly via client
+	sync.RWMutex
 	index map[uint16]tokenCompletor
 
 	lastIssuedID uint16 // The most recently issued ID. Used so we cycle through ids rather than immediately reusing them (can make debugging easier)
@@ -42,9 +37,8 @@ const (
 	midMax uint16 = 65535
 )
 
-// cleanup clears the message ID map; completes all token types and sets error on PUB, SUB and UNSUB tokens.
 func (mids *messageIds) cleanUp() {
-	mids.mu.Lock()
+	mids.Lock()
 	for _, token := range mids.index {
 		switch token.(type) {
 		case *PublishToken:
@@ -53,43 +47,25 @@ func (mids *messageIds) cleanUp() {
 			token.setError(fmt.Errorf("connection lost before Subscribe completed"))
 		case *UnsubscribeToken:
 			token.setError(fmt.Errorf("connection lost before Unsubscribe completed"))
-		case nil: // should not be any nil entries
+		case nil:
 			continue
 		}
 		token.flowComplete()
 	}
 	mids.index = make(map[uint16]tokenCompletor)
-	mids.mu.Unlock()
+	mids.Unlock()
 	DEBUG.Println(MID, "cleaned up")
 }
 
-// cleanUpSubscribe removes all SUBSCRIBE and UNSUBSCRIBE tokens (setting error)
-// This may be called when the connection is lost, and we will not be resending SUB/UNSUB packets
-func (mids *messageIds) cleanUpSubscribe() {
-	mids.mu.Lock()
-	for mid, token := range mids.index {
-		switch token.(type) {
-		case *SubscribeToken:
-			token.setError(fmt.Errorf("connection lost before Subscribe completed"))
-			delete(mids.index, mid)
-		case *UnsubscribeToken:
-			token.setError(fmt.Errorf("connection lost before Unsubscribe completed"))
-			delete(mids.index, mid)
-		}
-	}
-	mids.mu.Unlock()
-	DEBUG.Println(MID, "cleaned up subs")
-}
-
 func (mids *messageIds) freeID(id uint16) {
-	mids.mu.Lock()
+	mids.Lock()
 	delete(mids.index, id)
-	mids.mu.Unlock()
+	mids.Unlock()
 }
 
 func (mids *messageIds) claimID(token tokenCompletor, id uint16) {
-	mids.mu.Lock()
-	defer mids.mu.Unlock()
+	mids.Lock()
+	defer mids.Unlock()
 	if _, ok := mids.index[id]; !ok {
 		mids.index[id] = token
 	} else {
@@ -105,8 +81,8 @@ func (mids *messageIds) claimID(token tokenCompletor, id uint16) {
 // getID will return an available id or 0 if none available
 // The id will generally be the previous id + 1 (because this makes tracing messages a bit simpler)
 func (mids *messageIds) getID(t tokenCompletor) uint16 {
-	mids.mu.Lock()
-	defer mids.mu.Unlock()
+	mids.Lock()
+	defer mids.Unlock()
 	i := mids.lastIssuedID // note: the only situation where lastIssuedID is 0 the map will be empty
 	looped := false        // uint16 will loop from 65535->0
 	for {
@@ -127,8 +103,8 @@ func (mids *messageIds) getID(t tokenCompletor) uint16 {
 }
 
 func (mids *messageIds) getToken(id uint16) tokenCompletor {
-	mids.mu.RLock()
-	defer mids.mu.RUnlock()
+	mids.RLock()
+	defer mids.RUnlock()
 	if token, ok := mids.index[id]; ok {
 		return token
 	}
