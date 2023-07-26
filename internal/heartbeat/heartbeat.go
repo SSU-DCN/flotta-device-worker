@@ -2,6 +2,7 @@ package heartbeat
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	ansible "github.com/project-flotta/flotta-device-worker/internal/ansible"
+	"github.com/project-flotta/flotta-device-worker/internal/common"
 	cfg "github.com/project-flotta/flotta-device-worker/internal/configuration"
 	"github.com/project-flotta/flotta-device-worker/internal/datatransfer"
 	hw "github.com/project-flotta/flotta-device-worker/internal/hardware"
@@ -90,14 +92,44 @@ func (s *HeartbeatData) RetrieveInfo() models.Heartbeat {
 	}
 
 	config := s.configManager.GetDeviceConfiguration()
-	var hardwareInfo *models.HardwareInfo
+	hardwareInfo := &models.HardwareInfo{}
+
 	if config.Heartbeat.HardwareProfile.Include {
 		hardwareInfo = s.buildHardwareInfo()
 	}
+
+	db, err := common.SQLiteConnect(common.DBFile)
+	if err != nil {
+		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+	}
+	defer db.Close()
+	wirelessDevices, err := s.GetConnectedWirelessDevices(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, item := range wirelessDevices {
+		fmt.Printf("Name: %s\n", item.Name)
+		fmt.Printf("Manufacturer: %s\n", item.Manufacturer)
+		fmt.Printf("Model: %s\n", item.Model)
+		fmt.Printf("Software Version: %s\n", item.SwVersion)
+		fmt.Printf("Identifiers: %s\n", item.Identifiers)
+		fmt.Printf("Protocol: %s\n", item.Protocol)
+		fmt.Printf("Connection: %s\n", item.Connection)
+		fmt.Printf("Battery: %s\n", item.Battery)
+		fmt.Printf("Availability: %s\n", item.Availability)
+		fmt.Printf("Device Type: %s\n", item.DeviceType)
+		fmt.Printf("Last Seen: %s\n", item.LastSeen)
+		fmt.Println("--------")
+	}
+
+	hardwareInfo.WirelessDevices = wirelessDevices
+
 	ansibleEvents := []*models.EventInfo{}
 	if s.ansibleManager != nil {
 		ansibleEvents = s.ansibleManager.PopEvents()
 	}
+
 	heartbeatInfo := models.Heartbeat{
 		Status:             models.HeartbeatStatusUp,
 		Version:            s.configManager.GetConfigurationVersion(),
@@ -276,6 +308,19 @@ func (s *Heartbeat) getInterval(config models.DeviceConfiguration) int64 {
 func (s *Heartbeat) pushInformation() error {
 	// Create a data message to send back to the dispatcher.
 	heartbeatInfo := s.data.RetrieveInfo()
+	// db, err := common.SQLiteConnect(common.DBFile)
+	// if err != nil {
+	// 	log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+	// }
+	// defer db.Close()
+
+	// if wirelessDevices, err := s.GetConnectedWirelessDevices(db); err != nil {
+	// 	log.Warnf("failed to list wireless devices: %v", err)
+
+	// } else {
+	// 	heartbeatInfo.Hardware.WirelessDevices = wirelessDevices
+	// }
+
 	deviceId := s.data.workloadManager.GetDeviceID()
 	log.Debugf("pushInformation: Heartbeat info: %+v; DeviceID: %s;", heartbeatInfo, deviceId)
 	content, err := json.Marshal(heartbeatInfo)
@@ -336,4 +381,34 @@ func (s *Heartbeat) stopTicker() {
 		defer s.tickerLock.RUnlock()
 		s.ticker.Stop()
 	}
+}
+
+//NEW CODE HERE
+func (s *HeartbeatData) GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
+	rows, err := db.Query("SELECT name, manufacturer, model, sw_version, identifiers, protocol, connection, battery, availability, device_type, last_seen FROM EndNodeDevice")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*models.WirelessDevice
+	for rows.Next() {
+		fmt.Println("ITEMS")
+
+		// Create a new instance of models.WirelessDevice
+		item := &models.WirelessDevice{}
+
+		err := rows.Scan(&item.Name, &item.Manufacturer, &item.Model, &item.SwVersion, &item.Identifiers, &item.Protocol, &item.Connection, &item.Battery, &item.Availability, &item.DeviceType, &item.LastSeen)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return items, nil
 }

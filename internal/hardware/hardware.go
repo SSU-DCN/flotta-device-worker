@@ -1,16 +1,20 @@
 package hardware
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
 
-	log "github.com/sirupsen/logrus"
 	runc "github.com/opencontainers/runc/libcontainer/devices"
 	"github.com/openshift/assisted-installer-agent/src/inventory"
 	"github.com/openshift/assisted-installer-agent/src/util"
+	"github.com/project-flotta/flotta-device-worker/internal/common"
 	"github.com/project-flotta/flotta-device-worker/internal/mount"
 	"github.com/project-flotta/flotta-operator/models"
+	log "github.com/sirupsen/logrus"
+
+	_ "github.com/mattn/go-sqlite3" // Import the SQLite driver
 )
 
 //go:generate mockgen -package=hardware -destination=mock_hardware.go . Hardware
@@ -56,6 +60,18 @@ func (s *HardwareInfo) GetHardwareImmutableInformation(hardwareInfo *models.Hard
 		hardwareInfo.HostDevices = hostDevices
 	}
 
+	db, err := common.SQLiteConnect(common.DBFile)
+	if err != nil {
+		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+	}
+	defer db.Close()
+
+	if wirelessDevices, err := s.GetConnectedWirelessDevices(db); err != nil {
+		log.Warnf("failed to list wireless devices: %v", err)
+	} else {
+		hardwareInfo.WirelessDevices = wirelessDevices
+	}
+
 	return nil
 }
 
@@ -94,6 +110,18 @@ func (s *HardwareInfo) getHardwareMutableInformation(hardwareInfo *models.Hardwa
 	}
 
 	hardwareInfo.Mounts = mounts
+
+	db, err := common.SQLiteConnect(common.DBFile)
+	if err != nil {
+		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+	}
+	defer db.Close()
+
+	if wirelessDevices, err := s.GetConnectedWirelessDevices(db); err != nil {
+		log.Warnf("failed to list wireless devices: %v", err)
+	} else {
+		hardwareInfo.WirelessDevices = wirelessDevices
+	}
 
 	return nil
 }
@@ -147,4 +175,32 @@ func GetMutableHardwareInfoDelta(hardwareMutableInfoPrevious models.HardwareInfo
 	}
 
 	return hardwareInfo
+}
+
+//NEW CODE
+func (s *HardwareInfo) GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
+	rows, err := db.Query("SELECT * FROM EndNodeDevice")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*models.WirelessDevice
+	for rows.Next() {
+		var item *models.WirelessDevice
+
+		err := rows.Scan(&item.Name, &item.Manufacturer, &item.Model, &item.SwVersion, &item.Identifiers, &item.Protocol, &item.Connection, &item.Battery, &item.LastSeen)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return items, nil
+
 }
