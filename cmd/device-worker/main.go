@@ -144,7 +144,7 @@ func main() {
 	}
 
 	//presetup SQLite database for end nodes
-	setupSqliteDB()
+	common.SetupSqliteDB()
 
 	// Register as a Worker service with gRPC and start accepting connections.
 	dataDir := path.Join(baseDataDir, "device")
@@ -334,49 +334,6 @@ const (
 	mqttPassword = "flotta"
 )
 
-// Data represents the entire JSON data
-// type SensorData struct {
-// 	Device   Device   `json:"device"`
-// 	Readings Readings `json:"readings"`
-// 	State    State    `json:"state"`
-// }
-
-//general device information
-// type Device struct {
-// 	Name         string `json:"name"`
-// 	Manufacturer string `json:"manufacturer"`
-// 	Model        string `json:"model"`
-// 	SWVersion    string `json:"sw_version"`
-// 	Identifiers  string `json:"identifiers"`
-// 	Protocol     string `json:"protocol"`
-// 	Connection   string `json:"connection"`
-// 	Battery      string `json:"battery"`
-// 	DeviceType   string `json:"device_type"`
-// 	// Availability   string `json:"availability"`
-// }
-
-//information/state of attached sensor
-// type Readings struct {
-// 	Name         string `json:"name"`
-// 	Manufacturer string `json:"manufacturer"`
-// 	Model        string `json:"model"`
-// 	SWVersion    string `json:"sw_version"`
-// 	Identifiers  string `json:"identifiers"`
-// 	Protocol     string `json:"protocol"`
-// 	Connection   string `json:"connection"`
-// }
-
-// //information/state of attached switches or actuators
-// type State struct {
-// 	Name         string `json:"name"`
-// 	Manufacturer string `json:"manufacturer"`
-// 	Model        string `json:"model"`
-// 	SWVersion    string `json:"sw_version"`
-// 	Identifiers  string `json:"identifiers"`
-// 	Protocol     string `json:"protocol"`
-// 	Connection   string `json:"connection"`
-// }
-
 func mqttSqlite() {
 	log.Infoln("MQTT HERE")
 
@@ -399,8 +356,6 @@ func mqttSqlite() {
 		return
 	}
 
-	// Keep the program running to receive messages
-	// select {}
 }
 
 func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
@@ -418,7 +373,7 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 		// Unmarshal the JSON data into the 'dataMap' variable
 		err := json.Unmarshal([]byte(msg.Payload()), &dataMap)
 		if err != nil {
-			fmt.Println("Error parsing JSON:", err)
+			log.Errorf("Error parsing JSON: %s", err.Error())
 			return
 		}
 
@@ -437,8 +392,37 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 			// Access and print the parsed readings data for sensor
 			if _, ok := dataMap["readings"].(map[string]interface{}); ok {
 				device.DeviceType = "Sensor"
-			} else {
-				fmt.Println("Readings data not found in the JSON.")
+				// Convert the readings data to a JSON string
+				readingsJSON, err := json.Marshal(dataMap["readings"])
+				if err != nil {
+					log.Errorf("Error converting Readings to JSON: %s", err.Error())
+					return
+				}
+
+				// Save the JSON string to a variable or file, or use it as needed
+				readingsAsString := string(readingsJSON)
+
+				// Print the JSON string representation of the readings
+				device.Readings = readingsAsString
+			}
+
+			if _, ok := dataMap["state"].(map[string]interface{}); ok {
+				device.DeviceType = "Switch"
+
+				// Get the "state" value from the map
+				stateData, ok := dataMap["state"].(map[string]interface{})
+				if !ok {
+					log.Error("Invalid state value or type")
+					return
+				}
+
+				// Get the "state" field from the "stateData" map
+				stateValue, ok := stateData["state"].(string)
+				if !ok {
+					log.Error("Invalid state field value or type")
+					return
+				}
+				device.State = stateValue
 			}
 
 			db, err := common.SQLiteConnect(common.DBFile)
@@ -475,12 +459,24 @@ func insertDataToSQLite(data models.WirelessDevice, topic string, db *sql.DB) er
 
 	// Insert a record with timestamp into the table
 	timestamp := time.Now().Format(time.RFC3339)
-	insertSQL := "INSERT INTO EndNodeDevice (name, manufacturer, model, sw_version, identifiers, protocol, connection,battery, availability, topic, device_type, last_seen) VALUES (?, ?, ?,?, ?, ?,?, ?, ?,?, ?, ?);"
-	_, err := db.Exec(insertSQL, data.Name, data.Manufacturer, data.Model, data.SwVersion, data.Identifiers, data.Protocol,
-		data.Connection, data.Battery, "", topic, data.DeviceType, timestamp)
-	if err != nil {
-		log.Errorf("Error inserting data: %s", err.Error())
-		return err
+	if data.DeviceType == "Sensor" {
+		insertSQL := "INSERT INTO EndNodeDevice (name, manufacturer, model, sw_version, identifiers, protocol, connection,battery, availability, topic, device_type, readings, last_seen) VALUES (?, ?,?, ?,?, ?, ?,?, ?, ?,?, ?, ?);"
+		_, err := db.Exec(insertSQL, data.Name, data.Manufacturer, data.Model, data.SwVersion, data.Identifiers, data.Protocol,
+			data.Connection, data.Battery, data.Availability, topic, data.DeviceType, data.Readings, timestamp)
+		if err != nil {
+			log.Errorf("Error inserting data: %s", err.Error())
+			return err
+		}
+		insertSensorData(data, db, timestamp)
+	} else {
+		insertSQL := "INSERT INTO EndNodeDevice (name, manufacturer, model, sw_version, identifiers, protocol, connection,battery, availability, topic, device_type, state,last_seen) VALUES (?, ?, ?,?, ?, ?,?, ?, ?,?,?, ?, ?);"
+		_, err := db.Exec(insertSQL, data.Name, data.Manufacturer, data.Model, data.SwVersion, data.Identifiers, data.Protocol,
+			data.Connection, data.Battery, data.Availability, topic, data.DeviceType, data.State, timestamp)
+		if err != nil {
+			log.Errorf("Error inserting data: %s", err.Error())
+			return err
+		}
+		insertSwitchData(data, db, timestamp)
 	}
 
 	return nil
@@ -498,66 +494,45 @@ func isEndNodeDeviceRecordExists(db *sql.DB, topic string, device models.Wireles
 
 func updateEndNodeDevice(db *sql.DB, topic string, device models.WirelessDevice) error {
 	timestamp := time.Now().Format(time.RFC3339)
-	_, err := db.Exec("UPDATE EndNodeDevice SET last_seen = ? WHERE name = ? AND manufacturer = ? AND model =? AND identifiers=? AND topic=?", timestamp, device.Name, device.Manufacturer, device.Model, device.Identifiers, topic)
-	return err
+	if device.DeviceType == "Sensor" {
+		_, err := db.Exec("UPDATE EndNodeDevice SET sw_version=?, protocol= ?, connection=?, last_seen = ?, battery=?, availability=?  WHERE name = ? AND manufacturer = ? AND model =? AND identifiers=? AND topic=? AND readings = ?",
+			device.SwVersion, device.Protocol, device.Connection, timestamp, device.Battery, device.Availability, device.Name, device.Manufacturer, device.Model, device.Identifiers, topic, device.Readings)
+		if err != nil {
+			log.Errorf("Error updating EndNode data: %s", err.Error())
+			return err
+		}
+		insertSensorData(device, db, timestamp)
+	} else {
+		_, err := db.Exec("UPDATE EndNodeDevice SET sw_version=?, protocol= ?, connection=?, last_seen = ?, battery=?, availability=?  WHERE name = ? AND manufacturer = ? AND model =? AND identifiers=? AND topic=? AND state = ?",
+			device.SwVersion, device.Protocol, device.Connection, timestamp, device.Battery, device.Availability, device.Name, device.Manufacturer, device.Model, device.Identifiers, topic, device.State)
+		if err != nil {
+			log.Errorf("Error updating EndNode data: %s", err.Error())
+			return err
+		}
+		insertSwitchData(device, db, timestamp)
+	}
+
+	return nil
 }
 
-//check if table exists or not then create on not for leafdevices
-func setupSqliteDB() {
-
-	log.Info("Setup end nodes sqlite local database")
-	// Check if the database file already exists
-	if _, err := os.Stat(common.DBFile); err == nil {
-		log.Error("Database file already exists, skipping creation...\n")
-	} else if os.IsNotExist(err) {
-		// Create the SQLite database file if it doesn't exist
-		file, err := os.Create(common.DBFile)
-		if err != nil {
-			log.Errorf("Error creating database file: %s \n", err.Error())
-			return
-		}
-		file.Close()
-		log.Info("Database file created successfully.")
-	} else {
-		log.Errorf("Error checking database file: %s \n", err.Error())
-		return
-	}
-
-	// Open a connection to the SQLite database
-
-	db, err := common.SQLiteConnect(common.DBFile)
+func insertSensorData(data models.WirelessDevice, db *sql.DB, timestamp string) error {
+	insertSQL := "INSERT INTO EndNodeDeviceEvents (identifiers, battery, availability, readings, last_seen) VALUES (?, ?, ?,?, ?);"
+	_, err := db.Exec(insertSQL, data.Identifiers, data.Battery, data.Availability, data.Readings, timestamp)
 	if err != nil {
-		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+		log.Errorf("Error inserting data for sensor: %s", err.Error())
+		return err
 	}
-	defer db.Close()
+	return nil
+}
 
-	// Create a table if it doesn't exist
-	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS EndNodeDevice (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		manufacturer TEXT NULL,
-		model TEXT NULL,
-		sw_version TEXT NULL,
-		identifiers TEXT NULL,
-		protocol TEXT NULL,
-		connection TEXT NULL,
-		battery TEXT NULL,
-		availability TEXT NULL,
-		topic TEXT NOT NULL,
-		device_type TEXT NULL,
-		readings TEXT NULL,
-		state TEXT NULL,
-		last_seen TEXT NOT NULL
-	);`
-
-	_, err = db.Exec(createTableSQL)
+func insertSwitchData(data models.WirelessDevice, db *sql.DB, timestamp string) error {
+	insertSQL := "INSERT INTO EndNodeDeviceEvents (identifiers, battery, availability, state, last_seen) VALUES (?, ?, ?,?, ?);"
+	_, err := db.Exec(insertSQL, data.Identifiers, data.Battery, data.Availability, data.State, timestamp)
 	if err != nil {
-		log.Errorf("Error creating table: %s \n", err.Error())
-		return
+		log.Errorf("Error inserting data for switch: %s", err.Error())
+		return err
 	}
-
-	log.Info("Table created successfully or already exists!")
+	return nil
 }
 
 // getStringValue is a helper function to safely retrieve string values from a map

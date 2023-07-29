@@ -1,7 +1,6 @@
 package hardware
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -66,12 +65,6 @@ func (s *HardwareInfo) GetHardwareImmutableInformation(hardwareInfo *models.Hard
 	}
 	defer db.Close()
 
-	if wirelessDevices, err := s.GetConnectedWirelessDevices(db); err != nil {
-		log.Warnf("failed to list wireless devices: %v", err)
-	} else {
-		hardwareInfo.WirelessDevices = wirelessDevices
-	}
-
 	return nil
 }
 
@@ -116,12 +109,6 @@ func (s *HardwareInfo) getHardwareMutableInformation(hardwareInfo *models.Hardwa
 		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 	}
 	defer db.Close()
-
-	if wirelessDevices, err := s.GetConnectedWirelessDevices(db); err != nil {
-		log.Warnf("failed to list wireless devices: %v", err)
-	} else {
-		hardwareInfo.WirelessDevices = wirelessDevices
-	}
 
 	return nil
 }
@@ -175,32 +162,4 @@ func GetMutableHardwareInfoDelta(hardwareMutableInfoPrevious models.HardwareInfo
 	}
 
 	return hardwareInfo
-}
-
-//NEW CODE
-func (s *HardwareInfo) GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
-	rows, err := db.Query("SELECT * FROM EndNodeDevice")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var items []*models.WirelessDevice
-	for rows.Next() {
-		var item *models.WirelessDevice
-
-		err := rows.Scan(&item.Name, &item.Manufacturer, &item.Model, &item.SwVersion, &item.Identifiers, &item.Protocol, &item.Connection, &item.Battery, &item.LastSeen)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return items, nil
-
 }

@@ -105,9 +105,9 @@ func (s *HeartbeatData) RetrieveInfo() models.Heartbeat {
 	defer db.Close()
 	wirelessDevices, err := s.GetConnectedWirelessDevices(db)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("An error occured while getting connected wireless devices for HB: %s ", err.Error())
 	}
-
+	var i = 0
 	for _, item := range wirelessDevices {
 		fmt.Printf("Name: %s\n", item.Name)
 		fmt.Printf("Manufacturer: %s\n", item.Manufacturer)
@@ -121,7 +121,12 @@ func (s *HeartbeatData) RetrieveInfo() models.Heartbeat {
 		fmt.Printf("Device Type: %s\n", item.DeviceType)
 		fmt.Printf("Last Seen: %s\n", item.LastSeen)
 		fmt.Println("--------")
+		fmt.Println(i)
+		i++
 	}
+
+	fmt.Println("")
+	fmt.Println(len(wirelessDevices))
 
 	hardwareInfo.WirelessDevices = wirelessDevices
 
@@ -385,7 +390,7 @@ func (s *Heartbeat) stopTicker() {
 
 //NEW CODE HERE
 func (s *HeartbeatData) GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
-	rows, err := db.Query("SELECT name, manufacturer, model, sw_version, identifiers, protocol, connection, battery, availability, device_type, last_seen FROM EndNodeDevice")
+	rows, err := db.Query("SELECT name, manufacturer, model, sw_version, identifiers, protocol, connection, battery, availability, device_type, last_seen, state, readings FROM EndNodeDevice ORDER BY id DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -393,14 +398,28 @@ func (s *HeartbeatData) GetConnectedWirelessDevices(db *sql.DB) ([]*models.Wirel
 
 	var items []*models.WirelessDevice
 	for rows.Next() {
-		fmt.Println("ITEMS")
+		// fmt.Println("ITEMS")
 
 		// Create a new instance of models.WirelessDevice
 		item := &models.WirelessDevice{}
 
-		err := rows.Scan(&item.Name, &item.Manufacturer, &item.Model, &item.SwVersion, &item.Identifiers, &item.Protocol, &item.Connection, &item.Battery, &item.Availability, &item.DeviceType, &item.LastSeen)
+		var readingsPtr *string // Declare a pointer to string
+		var statePtr *string    // Declare a pointer to string
+
+		err := rows.Scan(&item.Name, &item.Manufacturer, &item.Model, &item.SwVersion, &item.Identifiers, &item.Protocol, &item.Connection, &item.Battery, &item.Availability, &item.DeviceType, &item.LastSeen, &statePtr, &readingsPtr)
 		if err != nil {
 			return nil, err
+		}
+		// Now, assign the value from readingsPtr to the item.Readings field
+		if readingsPtr != nil {
+			item.Readings = *readingsPtr // Dereference the pointer and assign the string value
+		} else {
+			item.Readings = "" // Set to an empty string if the value is NULL (readingsPtr is nil)
+		}
+		if statePtr != nil {
+			item.State = *statePtr // Dereference the pointer and assign the string value
+		} else {
+			item.State = "" // Set to an empty string if the value is NULL (readingsPtr is nil)
 		}
 		items = append(items, item)
 	}
