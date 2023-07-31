@@ -335,7 +335,7 @@ const (
 )
 
 func mqttSqlite() {
-	log.Infoln("MQTT HERE")
+	// log.Infoln("MQTT HERE")
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(mqttBroker)
@@ -359,8 +359,8 @@ func mqttSqlite() {
 }
 
 func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
-	log.Infof("Received Topic: %s\n", msg.Topic())
-	log.Infof("Received message: %s\n", msg.Payload())
+	// log.Infof("Received Topic: %s\n", msg.Topic())
+	// log.Infof("Received message: %s\n", msg.Payload())
 
 	if strings.Contains(msg.Topic(), "availability") {
 		log.Info("This is the availability topic, will do later!")

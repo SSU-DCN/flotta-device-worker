@@ -107,26 +107,26 @@ func (s *HeartbeatData) RetrieveInfo() models.Heartbeat {
 	if err != nil {
 		log.Errorf("An error occured while getting connected wireless devices for HB: %s ", err.Error())
 	}
-	var i = 0
-	for _, item := range wirelessDevices {
-		fmt.Printf("Name: %s\n", item.Name)
-		fmt.Printf("Manufacturer: %s\n", item.Manufacturer)
-		fmt.Printf("Model: %s\n", item.Model)
-		fmt.Printf("Software Version: %s\n", item.SwVersion)
-		fmt.Printf("Identifiers: %s\n", item.Identifiers)
-		fmt.Printf("Protocol: %s\n", item.Protocol)
-		fmt.Printf("Connection: %s\n", item.Connection)
-		fmt.Printf("Battery: %s\n", item.Battery)
-		fmt.Printf("Availability: %s\n", item.Availability)
-		fmt.Printf("Device Type: %s\n", item.DeviceType)
-		fmt.Printf("Last Seen: %s\n", item.LastSeen)
-		fmt.Println("--------")
-		fmt.Println(i)
-		i++
-	}
+	// var i = 0
+	// for _, item := range wirelessDevices {
+	// 	fmt.Printf("Name: %s\n", item.Name)
+	// 	fmt.Printf("Manufacturer: %s\n", item.Manufacturer)
+	// 	fmt.Printf("Model: %s\n", item.Model)
+	// 	fmt.Printf("Software Version: %s\n", item.SwVersion)
+	// 	fmt.Printf("Identifiers: %s\n", item.Identifiers)
+	// 	fmt.Printf("Protocol: %s\n", item.Protocol)
+	// 	fmt.Printf("Connection: %s\n", item.Connection)
+	// 	fmt.Printf("Battery: %s\n", item.Battery)
+	// 	fmt.Printf("Availability: %s\n", item.Availability)
+	// 	fmt.Printf("Device Type: %s\n", item.DeviceType)
+	// 	fmt.Printf("Last Seen: %s\n", item.LastSeen)
+	// 	fmt.Println("--------")
+	// 	fmt.Println(i)
+	// 	i++
+	// }
 
-	fmt.Println("")
-	fmt.Println(len(wirelessDevices))
+	// fmt.Println("")
+	// fmt.Println(len(wirelessDevices))
 
 	hardwareInfo.WirelessDevices = wirelessDevices
 
