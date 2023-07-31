@@ -2,11 +2,13 @@ package configuration
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +16,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/project-flotta/flotta-device-worker/internal/common"
+	"github.com/project-flotta/flotta-device-worker/internal/wireless"
 	"github.com/project-flotta/flotta-operator/models"
 )
 
@@ -115,10 +119,19 @@ func (m *Manager) GetSecrets() models.SecretList {
 }
 
 func (m *Manager) Update(message models.DeviceConfigurationMessage) error {
+
+	log.Info("WE ARE IN THE UPDATE FUNCTION FROM DEVICE SERVER PART")
+	db, err := common.SQLiteConnect(common.DBFile)
+	if err != nil {
+		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+	}
+	defer db.Close()
+
 	m.lock.RLock()
 	configurationEqual := reflect.DeepEqual(message.Configuration, m.deviceConfiguration.Configuration)
 	workloadsEqual := isEqualUnorderedWorkloadLists(message.Workloads, m.deviceConfiguration.Workloads)
 	secretsEqual := isEqualUnorderedSecretLists(message.Secrets, m.deviceConfiguration.Secrets)
+	_ = isEqualUnorderedWirelessDevices(db, message.Configuration.WirelessDevices)
 	m.lock.RUnlock()
 
 	log.Tracef("workloads equal: [%v]; configurationEqual: [%v]; secretsEqual: [%v]; DeviceID: [%s]", workloadsEqual, configurationEqual, secretsEqual, message.DeviceID)
@@ -234,6 +247,45 @@ func isEqualUnorderedWorkloadLists(x models.WorkloadList, y models.WorkloadList)
 		otherWorkload, ok := workloadsMap[workload.Name]
 		if !ok || !reflect.DeepEqual(workload, otherWorkload) {
 			return false
+		}
+	}
+	return true
+}
+
+//NEW FUNCTION
+func isEqualUnorderedWirelessDevices(db *sql.DB, ConfigurationReceivedWirelessDevices []*models.WirelessDevice) bool {
+	// nil and empty lists are considered equal. it's the contents that we care about
+	if len(ConfigurationReceivedWirelessDevices) > 0 {
+		db, err := common.SQLiteConnect(common.DBFile)
+		if err != nil {
+			log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+		}
+		defer db.Close()
+		SqliteWirelessDevices, err := wireless.GetConnectedWirelessDevices(db)
+		if err != nil {
+			log.Errorf("An error occured while getting connected wireless devices for HB: %s ", err.Error())
+		}
+
+		for _, sqliteDevice := range SqliteWirelessDevices {
+			for _, receivedFromConfigDevice := range ConfigurationReceivedWirelessDevices {
+				if sqliteDevice.Identifiers == receivedFromConfigDevice.Identifiers {
+					if sqliteDevice.DeviceType == "Sensor" {
+						continue
+					} else {
+
+						if strings.ToLower(sqliteDevice.Protocol) == "mqtt" && strings.ToLower(sqliteDevice.Connection) == "wi-fi" {
+							if sqliteDevice.State != receivedFromConfigDevice.State {
+								err = wireless.ActionForWiFiMqttDevice(db, *receivedFromConfigDevice)
+								if err != nil {
+									log.Errorf("Failed to send action to device: %s Protocol: %s Connection: Error: %s", receivedFromConfigDevice.Protocol, receivedFromConfigDevice.Connection, err.Error())
+								}
+							}
+
+						}
+					}
+				}
+
+			}
 		}
 	}
 	return true
