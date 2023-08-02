@@ -103,6 +103,6 @@ func SQLiteConnect(dbFile string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to ping the database: %w", err)
 	}
 
-	log.Info("Connected to SQLite database successfully")
+	// log.Info("Connected to SQLite database successfully")
 	return db, nil
 }

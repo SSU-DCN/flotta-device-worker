@@ -125,8 +125,8 @@ func (s *HeartbeatData) RetrieveInfo() models.Heartbeat {
 	// 	i++
 	// }
 
-	// fmt.Println("")
-	// fmt.Println(len(wirelessDevices))
+	fmt.Println("***************")
+	fmt.Println(len(wirelessDevices))
 
 	hardwareInfo.WirelessDevices = wirelessDevices
 

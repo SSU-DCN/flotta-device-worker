@@ -120,7 +120,7 @@ func (m *Manager) GetSecrets() models.SecretList {
 
 func (m *Manager) Update(message models.DeviceConfigurationMessage) error {
 
-	log.Info("WE ARE IN THE UPDATE FUNCTION FROM DEVICE SERVER PART")
+	// log.Info("WE ARE IN THE UPDATE FUNCTION FROM DEVICE SERVER PART")
 	db, err := common.SQLiteConnect(common.DBFile)
 	if err != nil {
 		log.Errorf("Error openning sqlite database file: %s\n", err.Error())

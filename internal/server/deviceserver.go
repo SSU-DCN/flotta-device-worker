@@ -21,7 +21,7 @@ type deviceServer struct {
 }
 
 func NewDeviceServer(configManager *configuration2.Manager, registrationManager *registration2.Registration, ansibleManager *ansible.Manager) *deviceServer {
-	log.Info("DEVICE SERVER")
+	// log.Info("DEVICE SERVER")
 
 	server := &deviceServer{
 		deviceID:             configManager.GetDeviceID(),
