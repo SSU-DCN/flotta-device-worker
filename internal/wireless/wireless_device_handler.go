@@ -2,6 +2,7 @@ package wireless
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/project-flotta/flotta-device-worker/internal/common"
 	"github.com/project-flotta/flotta-operator/models"
@@ -54,6 +55,7 @@ func ActionForWiFiMqttDevice(db *sql.DB, wirelessDeviceConfiguration models.Wire
 
 	client, err := common.MQTT_Connect()
 	if err != nil {
+		fmt.Println("ERROR CONNECT MQTT: ", err.Error())
 		return err
 	}
 

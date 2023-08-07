@@ -13,10 +13,12 @@ import (
 )
 
 func MQTT_Setup() {
-	// log.Infoln("MQTT HERE")
+	log.Infoln("MQTT HERE")
 
 	client, err := common.MQTT_Connect()
 	if err != nil {
+		log.Errorf("Failed to connect to MQTT: %s", err.Error())
+
 		return
 	}
 
@@ -131,6 +133,7 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 func PublishMQTT(client mqtt.Client, topic string, payLoad string) error {
 	token := client.Publish(topic, 0, false, payLoad)
 	if token.Error() != nil {
+		log.Errorf("Error publishing to topic: %s\n", token.Error())
 		return token.Error()
 	}
 	return nil

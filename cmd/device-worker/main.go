@@ -233,9 +233,7 @@ func main() {
 		}
 	}
 
-	go func() {
-		mqtt_handler.MQTT_Setup()
-	}()
+	go mqtt_handler.MQTT_Setup()
 
 	hbs := heartbeat2.NewHeartbeatService(dispatcherClient, configManager, wl, &hw, ansibleManager, dataMonitor, deviceOs, reg)
 	configManager.RegisterObserver(hbs)
