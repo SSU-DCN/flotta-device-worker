@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/project-flotta/flotta-device-worker/internal/common"
@@ -49,64 +48,70 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 			log.Errorf("Error parsing JSON: %s", err.Error())
 			return
 		}
-		timestamp := time.Now().Format(time.RFC3339)
 
 		// Access and print the parsed device data
 		if deviceData, ok := dataMap["device"].(map[string]interface{}); ok {
-			device := models.WirelessDevice{
-				Name:         getStringValue(deviceData, "name"),
-				Manufacturer: getStringValue(deviceData, "manufacturer"),
-				Model:        getStringValue(deviceData, "model"),
-				SwVersion:    getStringValue(deviceData, "sw_version"),
-				Identifiers:  getStringValue(deviceData, "identifiers"),
-				Protocol:     strings.ToLower(getStringValue(deviceData, "protocol")),
-				Connection:   strings.ToLower(getStringValue(deviceData, "connection")),
-				LastSeen:     timestamp,
+			wirelessDevice := models.WirelessDevice{
+				WirelessDeviceName:         getStringValue(deviceData, "wireless_device_name"),
+				WirelessDeviceManufacturer: getStringValue(deviceData, "wireless_device_manufacturer"),
+				WirelessDeviceModel:        getStringValue(deviceData, "wireless_device_model"),
+				WirelessDeviceSwVersion:    getStringValue(deviceData, "wireless_device_sw_version"),
+				WirelessDeviceIdentifier:   getStringValue(deviceData, "wireless_device_identifier"),
+				WirelessDeviceProtocol:     strings.ToLower(getStringValue(deviceData, "wireless_device_protocol")),
+				WirelessDeviceConnection:   strings.ToLower(getStringValue(deviceData, "wireless_device_connection")),
+				WirelessDeviceAvailability: getStringValue(deviceData, "wireless_device_availability"),
+				WirelessDeviceBattery:      getStringValue(deviceData, "wireless_device_battery"),
+				WirelessDeviceDescription:  getStringValue(deviceData, "wireless_device_description"),
+				WirelessDeviceLastSeen:     getStringValue(deviceData, "wireless_device_last_seen"),
 			}
 
-			// Access and print the parsed readings data for sensor
-			if _, ok := dataMap["readings"].(map[string]interface{}); ok {
-				device.DeviceType = "Sensor"
-				// Convert the readings data to a JSON string
-				readingsJSON, err := json.Marshal(dataMap["readings"])
+			var wirelessDeviceProperties []*models.DeviceProperty
+
+			if _, ok := dataMap["properties"].(map[string]interface{}); ok {
+				// Convert the properties data to a JSON string
+				// Marshal the properties data
+				propertiesRawData, err := json.Marshal(dataMap["properties"])
 				if err != nil {
-					log.Errorf("Error converting Readings to JSON: %s", err.Error())
+					log.Errorf("Error converting Device Properties to JSON: %s", err.Error())
 					return
 				}
 
-				// Save the JSON string to a variable or file, or use it as needed
-				readingsAsString := string(readingsJSON)
+				// Unmarshal the properties raw data into a map
+				var propertiesData []map[string]interface{}
+				err = json.Unmarshal(propertiesRawData, &propertiesData)
+				if err != nil {
+					log.Errorf("Error parsing JSON: %s", err.Error())
+					return
+				}
 
-				// Print the JSON string representation of the readings
-				device.Readings = readingsAsString
+				for _, propertyData := range propertiesData {
+					wirelessDeviceProperty := models.DeviceProperty{
+						PropertyAccessMode:       getStringValue(propertyData, "property_access_mode"),
+						PropertyDescription:      getStringValue(propertyData, "property_description"),
+						PropertyIdentifier:       getStringValue(propertyData, "property_identifier"),
+						WirelessDeviceIdentifier: getStringValue(propertyData, "wireless_device_identifier"),
+						PropertyLastSeen:         getStringValue(propertyData, "property_last_seen"),
+						PropertyName:             getStringValue(propertyData, "property_name"),
+						PropertyReading:          getStringValue(propertyData, "property_reading"),
+						PropertyServiceUUID:      getStringValue(propertyData, "property_service_uuid"),
+						PropertyState:            getStringValue(propertyData, "property_state"),
+						PropertyUnit:             getStringValue(propertyData, "property_unit"),
+					}
+
+					wirelessDeviceProperties = append(wirelessDeviceProperties, &wirelessDeviceProperty)
+				}
+
 			}
 
-			if _, ok := dataMap["state"].(map[string]interface{}); ok {
-				device.DeviceType = "Switch"
-
-				// Get the "state" value from the map
-				stateData, ok := dataMap["state"].(map[string]interface{})
-				if !ok {
-					log.Error("Invalid state value or type")
-					return
-				}
-
-				// Get the "state" field from the "stateData" map
-				stateValue, ok := stateData["state"].(string)
-				if !ok {
-					log.Error("Invalid state field value or type")
-					return
-				}
-				device.State = stateValue
-			}
+			wirelessDevice.DeviceProperties = wirelessDeviceProperties
 
 			db, err := common.SQLiteConnect(common.DBFile)
 			if err != nil {
 				log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 			}
 			defer db.Close()
-			if !isEndNodeDeviceRecordExists(db, msg.Topic(), device) {
-				err = insertDataToSQLite(device, msg.Topic(), db)
+			if !isEndNodeDeviceRecordExists(db, wirelessDevice) {
+				err = saveWirelessDeviceData(wirelessDevice, db)
 				if err != nil {
 					log.Errorf("Error inserting end node device record to local sqlite database: %s\n", err.Error())
 				} else {
@@ -115,7 +120,7 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 			} else {
 
 				log.Info("End node device already exists, updating it")
-				err = updateEndNodeDevice(db, msg.Topic(), device)
+				err = updateEndNodeDevice(db, wirelessDevice)
 				if err != nil {
 					log.Errorf("Error updating end node device record in local sqlite database: %s\n", err.Error())
 				} else {
@@ -130,7 +135,7 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 
 }
 
-func PublishMQTT(client mqtt.Client, topic string, payLoad string) error {
+func PublishMQTT(client mqtt.Client, topic string, payLoad interface{}) error {
 	token := client.Publish(topic, 0, false, payLoad)
 	if token.Error() != nil {
 		log.Errorf("Error publishing to topic: %s\n", token.Error())

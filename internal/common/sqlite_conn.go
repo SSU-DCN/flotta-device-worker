@@ -41,22 +41,19 @@ func SetupSqliteDB() {
 
 	// Create a table if it doesn't exist
 	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS EndNodeDevice (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		manufacturer TEXT NULL,
-		model TEXT NULL,
-		sw_version TEXT NULL,
-		identifiers TEXT NOT NULL,
-		protocol TEXT NULL,
-		connection TEXT NULL,
-		battery TEXT NULL,
-		availability TEXT NULL,
-		topic TEXT NOT NULL,
-		device_type TEXT NULL,
-		readings TEXT NULL,
-		state TEXT NULL,
-		last_seen TEXT NOT NULL
+	CREATE TABLE IF NOT EXISTS wireless_device (
+		wireless_device_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		wireless_device_name TEXT NOT NULL,
+		wireless_device_manufacturer TEXT NULL,
+		wireless_device_model TEXT NULL,
+		wireless_device_sw_version TEXT NULL,
+		wireless_device_identifier TEXT NOT NULL,
+		wireless_device_protocol TEXT NULL,
+		wireless_device_connection TEXT NULL,
+		wireless_device_battery TEXT NULL,
+		wireless_device_availability TEXT NULL,
+		wireless_device_description TEXT NULL,
+		wireless_device_last_seen TEXT NOT NULL
 	);`
 
 	_, err = db.Exec(createTableSQL)
@@ -67,14 +64,19 @@ func SetupSqliteDB() {
 
 	// Create a table if it doesn't exist
 	createTableSQL = `
-		CREATE TABLE IF NOT EXISTS EndNodeDeviceEvents (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			identifiers TEXT NOT NULL,
-			battery TEXT NULL,
-			availability TEXT NULL,
-			readings TEXT NULL,
-			state TEXT NULL,
-			last_seen TEXT NOT NULL
+		CREATE TABLE IF NOT EXISTS device_property (
+			device_property_id INTEGER PRIMARY KEY AUTOINCREMENT,
+			wireless_device_identifier TEXT NOT NULL,
+			property_identifier TEXT NOT NULL,
+			
+			property_service_uuid TEXT NULL,
+			property_name TEXT NOT NULL,
+			property_access_mode TEXT NOT NULL,
+			property_reading TEXT NULL,
+			property_state TEXT NULL,
+			property_unit TEXT NULL,
+			property_description TEXT NULL,
+			property_last_seen TEXT NULL
 		);`
 
 	_, err = db.Exec(createTableSQL)

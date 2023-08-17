@@ -8,36 +8,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func insertDataToSQLite(data models.WirelessDevice, topic string, db *sql.DB) error {
+func saveWirelessDeviceData(data models.WirelessDevice, db *sql.DB) error {
 
-	// Insert a record with timestamp into the table
-
-	if data.DeviceType == "Sensor" {
-		insertSQL := "INSERT INTO EndNodeDevice (name, manufacturer, model, sw_version, identifiers, protocol, connection,battery, availability, topic, device_type, readings, last_seen) VALUES (?, ?,?, ?,?, ?, ?,?, ?, ?,?, ?, ?);"
-		_, err := db.Exec(insertSQL, data.Name, data.Manufacturer, data.Model, data.SwVersion, data.Identifiers, data.Protocol,
-			data.Connection, data.Battery, data.Availability, topic, data.DeviceType, data.Readings, data.LastSeen)
-		if err != nil {
-			log.Errorf("Error inserting data: %s", err.Error())
-			return err
-		}
-		insertSensorData(data, db)
-	} else {
-		insertSQL := "INSERT INTO EndNodeDevice (name, manufacturer, model, sw_version, identifiers, protocol, connection,battery, availability, topic, device_type, state,last_seen) VALUES (?, ?, ?,?, ?, ?,?, ?, ?,?,?, ?, ?);"
-		_, err := db.Exec(insertSQL, data.Name, data.Manufacturer, data.Model, data.SwVersion, data.Identifiers, data.Protocol,
-			data.Connection, data.Battery, data.Availability, topic, data.DeviceType, data.State, data.LastSeen)
-		if err != nil {
-			log.Errorf("Error inserting data: %s", err.Error())
-			return err
-		}
-		insertSwitchData(data, db)
+	insertWirelessDeviceSQL := "INSERT INTO wireless_device (wireless_device_name, wireless_device_manufacturer, wireless_device_model, wireless_device_sw_version, wireless_device_identifier, wireless_device_protocol, wireless_device_connection,wireless_device_battery, wireless_device_availability, wireless_device_description, wireless_device_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?,?);"
+	_, err := db.Exec(insertWirelessDeviceSQL, data.WirelessDeviceName, data.WirelessDeviceManufacturer, data.WirelessDeviceModel, data.WirelessDeviceSwVersion, data.WirelessDeviceIdentifier, data.WirelessDeviceProtocol,
+		data.WirelessDeviceConnection, data.WirelessDeviceBattery, data.WirelessDeviceAvailability, data.WirelessDeviceDescription, data.WirelessDeviceLastSeen)
+	if err != nil {
+		log.Errorf("Error inserting device data: %s", err.Error())
+		return err
 	}
 
+	saveDeviceProperties(data.DeviceProperties, db)
 	return nil
 }
 
-func isEndNodeDeviceRecordExists(db *sql.DB, topic string, device models.WirelessDevice) bool {
+func isEndNodeDeviceRecordExists(db *sql.DB, device models.WirelessDevice) bool {
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM EndNodeDevice WHERE name = ? AND manufacturer = ? AND model =? AND identifiers=? AND topic=?", device.Name, device.Manufacturer, device.Model, device.Identifiers, topic).Scan(&count)
+	err := db.QueryRow("SELECT COUNT(*) FROM wireless_device WHERE wireless_device_name = ? AND wireless_device_identifier=?", device.WirelessDeviceName, device.WirelessDeviceIdentifier).Scan(&count)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,44 +32,30 @@ func isEndNodeDeviceRecordExists(db *sql.DB, topic string, device models.Wireles
 	return count > 0
 }
 
-func updateEndNodeDevice(db *sql.DB, topic string, device models.WirelessDevice) error {
-	if device.DeviceType == "Sensor" {
-		_, err := db.Exec("UPDATE EndNodeDevice SET sw_version=?, protocol= ?, connection=?, last_seen = ?, battery=?, availability=?, readings=? WHERE name = ?  AND identifiers=?",
-			device.SwVersion, device.Protocol, device.Connection, device.LastSeen, device.Battery, device.Availability, device.Readings, device.Name, device.Identifiers)
-		if err != nil {
-			log.Errorf("Error updating EndNode data: %s", err.Error())
-			return err
-		}
-		insertSensorData(device, db)
-	} else {
-		_, err := db.Exec("UPDATE EndNodeDevice SET sw_version=?, protocol= ?, connection=?, last_seen = ?, battery=?, availability=?, state=?  WHERE name = ? AND identifiers=?",
-			device.SwVersion, device.Protocol, device.Connection, device.LastSeen, device.Battery, device.Availability, device.State, device.Name, device.Identifiers)
-		if err != nil {
-			log.Errorf("Error updating EndNode data: %s", err.Error())
-			return err
-		}
-		insertSwitchData(device, db)
+func updateEndNodeDevice(db *sql.DB, device models.WirelessDevice) error {
+
+	_, err := db.Exec("UPDATE wireless_device SET wireless_device_description=? WHERE wireless_device_name = ?  AND wireless_device_identifier=?",
+		device.WirelessDeviceDescription, device.WirelessDeviceName, device.WirelessDeviceIdentifier)
+	if err != nil {
+		log.Errorf("Error updating EndNode data: %s", err.Error())
+		return err
 	}
+
+	saveDeviceProperties(device.DeviceProperties, db)
 
 	return nil
 }
 
-func insertSensorData(data models.WirelessDevice, db *sql.DB) error {
-	insertSQL := "INSERT INTO EndNodeDeviceEvents (identifiers, battery, availability, readings, last_seen) VALUES (?, ?, ?,?, ?);"
-	_, err := db.Exec(insertSQL, data.Identifiers, data.Battery, data.Availability, data.Readings, data.LastSeen)
-	if err != nil {
-		log.Errorf("Error inserting data for sensor: %s", err.Error())
-		return err
-	}
-	return nil
-}
+func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB) error {
+	for _, deviceProperty := range deviceProperties {
 
-func insertSwitchData(data models.WirelessDevice, db *sql.DB) error {
-	insertSQL := "INSERT INTO EndNodeDeviceEvents (identifiers, battery, availability, state, last_seen) VALUES (?, ?, ?,?, ?);"
-	_, err := db.Exec(insertSQL, data.Identifiers, data.Battery, data.Availability, data.State, data.LastSeen)
-	if err != nil {
-		log.Errorf("Error inserting data for switch: %s", err.Error())
-		return err
+		insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state, property_unit, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?);"
+		_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, deviceProperty.PropertyReading, deviceProperty.PropertyState,
+			deviceProperty.PropertyUnit, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen)
+		if err != nil {
+			log.Errorf("Error inserting device property  data: %s", err.Error())
+			return err
+		}
 	}
 	return nil
 }
@@ -100,7 +73,7 @@ func getStringValue(m map[string]interface{}, key string) string {
 func GetEndNodeDeviceTopic(db *sql.DB, identifier string) (string, error) {
 	var result string
 
-	query := "SELECT topic FROM EndNodeDevice WHERE identifiers=? LIMIT 1"
+	query := "SELECT topic FROM wireless_device WHERE identifiers=? LIMIT 1"
 
 	err := db.QueryRow(query, identifier).Scan(&result)
 

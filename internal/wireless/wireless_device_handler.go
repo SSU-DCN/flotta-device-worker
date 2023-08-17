@@ -9,38 +9,43 @@ import (
 )
 
 func GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
-	rows, err := db.Query("SELECT name, manufacturer, model, sw_version, identifiers, protocol, connection, battery, availability, device_type, last_seen, state, readings FROM EndNodeDevice ORDER BY id DESC")
+	rows, err := db.Query("SELECT wireless_device_name, wireless_device_manufacturer, wireless_device_model, wireless_device_sw_version, wireless_device_identifier, wireless_device_protocol, wireless_device_connection,wireless_device_battery, wireless_device_availability, wireless_device_description, wireless_device_last_seen FROM wireless_device ORDER BY wireless_device_id DESC")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	var items []*models.WirelessDevice
+
 	for rows.Next() {
 		// fmt.Println("ITEMS")
-
+		var deviceProperties []*models.DeviceProperty
 		// Create a new instance of models.WirelessDevice
 		item := &models.WirelessDevice{}
-
-		var readingsPtr *string // Declare a pointer to string
-		var statePtr *string    // Declare a pointer to string
-
-		err := rows.Scan(&item.Name, &item.Manufacturer, &item.Model, &item.SwVersion, &item.Identifiers, &item.Protocol, &item.Connection, &item.Battery, &item.Availability, &item.DeviceType, &item.LastSeen, &statePtr, &readingsPtr)
+		err := rows.Scan(&item.WirelessDeviceName, &item.WirelessDeviceManufacturer, &item.WirelessDeviceModel, &item.WirelessDeviceSwVersion, &item.WirelessDeviceIdentifier, &item.WirelessDeviceProtocol, &item.WirelessDeviceConnection, &item.WirelessDeviceBattery, &item.WirelessDeviceAvailability, &item.WirelessDeviceLastSeen)
 		if err != nil {
 			return nil, err
 		}
-		// Now, assign the value from readingsPtr to the item.Readings field
-		if readingsPtr != nil {
-			item.Readings = *readingsPtr // Dereference the pointer and assign the string value
-		} else {
-			item.Readings = "" // Set to an empty string if the value is NULL (readingsPtr is nil)
+
+		//get device properties
+		rowProperties, err := db.Query("SELECT wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state, property_unit, property_description,  property_last_seen FROM device_property ORDER BY device_property_id DESC")
+		if err != nil {
+			return nil, err
 		}
-		if statePtr != nil {
-			item.State = *statePtr // Dereference the pointer and assign the string value
-		} else {
-			item.State = "" // Set to an empty string if the value is NULL (readingsPtr is nil)
+		defer rowProperties.Close()
+		for rowProperties.Next() {
+			property := &models.DeviceProperty{}
+			err := rowProperties.Scan(&property.WirelessDeviceIdentifier, &property.PropertyIdentifier, &property.PropertyServiceUUID, &property.PropertyName, &property.PropertyAccessMode, &property.PropertyReading, &property.PropertyState, &property.PropertyUnit, &property.PropertyDescription, &property.PropertyLastSeen)
+			if err != nil {
+				return nil, err
+			}
+
+			deviceProperties = append(deviceProperties, property)
 		}
+
+		item.DeviceProperties = deviceProperties
 		items = append(items, item)
+
 	}
 
 	err = rows.Err()
@@ -51,7 +56,7 @@ func GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
 	return items, nil
 }
 
-func ActionForWiFiMqttDevice(db *sql.DB, wirelessDeviceConfiguration models.WirelessDevice) error {
+func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.WirelessDevice) error {
 
 	client, err := common.MQTT_Connect()
 	if err != nil {
@@ -59,12 +64,12 @@ func ActionForWiFiMqttDevice(db *sql.DB, wirelessDeviceConfiguration models.Wire
 		return err
 	}
 
-	topic, err := GetEndNodeDeviceTopic(db, wirelessDeviceConfiguration.Identifiers)
-	if err != nil {
-		return err
-	}
+	// topic, err := GetEndNodeDeviceTopic(db, wirelessDeviceConfiguration.WirelessDeviceIdentifier)
+	// if err != nil {
+	// 	return err
+	// }
 
-	err = PublishMQTT(client, topic, wirelessDeviceConfiguration.State)
+	err = PublishMQTT(client, "cloud/device/downstream", wirelessDeviceConfiguration.WirelessDeviceIdentifier)
 	if err != nil {
 		return err
 	}

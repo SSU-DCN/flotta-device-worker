@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 	"reflect"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -268,21 +267,13 @@ func isEqualUnorderedWirelessDevices(db *sql.DB, ConfigurationReceivedWirelessDe
 
 		for _, sqliteDevice := range SqliteWirelessDevices {
 			for _, receivedFromConfigDevice := range ConfigurationReceivedWirelessDevices {
-				if sqliteDevice.Identifiers == receivedFromConfigDevice.Identifiers {
-					if sqliteDevice.DeviceType == "Sensor" {
-						continue
-					} else {
+				if sqliteDevice.WirelessDeviceIdentifier == receivedFromConfigDevice.WirelessDeviceIdentifier {
 
-						if strings.ToLower(sqliteDevice.Protocol) == "mqtt" && strings.ToLower(sqliteDevice.Connection) == "wi-fi" {
-							if sqliteDevice.State != receivedFromConfigDevice.State {
-								err = wireless.ActionForWiFiMqttDevice(db, *receivedFromConfigDevice)
-								if err != nil {
-									log.Errorf("Failed to send action to device: %s Protocol: %s Connection: Error: %s", receivedFromConfigDevice.Protocol, receivedFromConfigDevice.Connection, err.Error())
-								}
-							}
-
-						}
+					err = wireless.ActionForDownStream(db, *receivedFromConfigDevice)
+					if err != nil {
+						log.Errorf("Failed to send action to device: %s Protocol: %s Connection: Error: %s", receivedFromConfigDevice.WirelessDeviceProtocol, receivedFromConfigDevice.WirelessDeviceConnection, err.Error())
 					}
+
 				}
 
 			}
