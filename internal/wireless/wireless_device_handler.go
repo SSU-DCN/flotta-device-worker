@@ -22,13 +22,13 @@ func GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
 		var deviceProperties []*models.DeviceProperty
 		// Create a new instance of models.WirelessDevice
 		item := &models.WirelessDevice{}
-		err := rows.Scan(&item.WirelessDeviceName, &item.WirelessDeviceManufacturer, &item.WirelessDeviceModel, &item.WirelessDeviceSwVersion, &item.WirelessDeviceIdentifier, &item.WirelessDeviceProtocol, &item.WirelessDeviceConnection, &item.WirelessDeviceBattery, &item.WirelessDeviceAvailability, &item.WirelessDeviceLastSeen)
+		err := rows.Scan(&item.WirelessDeviceName, &item.WirelessDeviceManufacturer, &item.WirelessDeviceModel, &item.WirelessDeviceSwVersion, &item.WirelessDeviceIdentifier, &item.WirelessDeviceProtocol, &item.WirelessDeviceConnection, &item.WirelessDeviceBattery, &item.WirelessDeviceAvailability, &item.WirelessDeviceDescription, &item.WirelessDeviceLastSeen)
 		if err != nil {
 			return nil, err
 		}
 
 		//get device properties
-		rowProperties, err := db.Query("SELECT wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state, property_unit, property_description,  property_last_seen FROM device_property ORDER BY device_property_id DESC")
+		rowProperties, err := db.Query("SELECT wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state, property_unit, property_description,  property_last_seen FROM device_property WHERE wireless_device_identifier = '" + item.WirelessDeviceIdentifier + "' GROUP BY property_identifier ORDER BY device_property_id DESC")
 		if err != nil {
 			return nil, err
 		}
@@ -68,8 +68,13 @@ func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.Wireless
 	// if err != nil {
 	// 	return err
 	// }
+	data := map[string]interface{}{
+		"wireless_device_identifier": wirelessDeviceConfiguration.WirelessDeviceIdentifier,
+		"wireless_device_name":       wirelessDeviceConfiguration.WirelessDeviceName,
+		"device_info":                wirelessDeviceConfiguration,
+	}
 
-	err = PublishMQTT(client, "cloud/device/downstream", wirelessDeviceConfiguration.WirelessDeviceIdentifier)
+	err = PublishMQTT(client, "cloud/device/downstream", data)
 	if err != nil {
 		return err
 	}

@@ -21,7 +21,7 @@ func MQTT_Setup() {
 		return
 	}
 
-	topic := "device/#"
+	topic := "plugin/#"
 	if token := client.Subscribe(topic, 0, OnMessageReceived); token.Wait() && token.Error() != nil {
 		fmt.Println("Failed to subscribe to MQTT topic:", token.Error())
 		log.Errorf("Failed to subscribe to MQTT topic: %s\n", token.Error())
@@ -50,46 +50,52 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 		}
 
 		// Access and print the parsed device data
-		if deviceData, ok := dataMap["device"].(map[string]interface{}); ok {
-			wirelessDevice := models.WirelessDevice{
-				WirelessDeviceName:         getStringValue(deviceData, "wireless_device_name"),
-				WirelessDeviceManufacturer: getStringValue(deviceData, "wireless_device_manufacturer"),
-				WirelessDeviceModel:        getStringValue(deviceData, "wireless_device_model"),
-				WirelessDeviceSwVersion:    getStringValue(deviceData, "wireless_device_sw_version"),
-				WirelessDeviceIdentifier:   getStringValue(deviceData, "wireless_device_identifier"),
-				WirelessDeviceProtocol:     strings.ToLower(getStringValue(deviceData, "wireless_device_protocol")),
-				WirelessDeviceConnection:   strings.ToLower(getStringValue(deviceData, "wireless_device_connection")),
-				WirelessDeviceAvailability: getStringValue(deviceData, "wireless_device_availability"),
-				WirelessDeviceBattery:      getStringValue(deviceData, "wireless_device_battery"),
-				WirelessDeviceDescription:  getStringValue(deviceData, "wireless_device_description"),
-				WirelessDeviceLastSeen:     getStringValue(deviceData, "wireless_device_last_seen"),
-			}
+		// if deviceData, ok := dataMap["device"].(map[string]interface{}); ok {
+		wirelessDevice := models.WirelessDevice{
+			WirelessDeviceName:         getStringValue(dataMap, "wireless_device_name"),
+			WirelessDeviceManufacturer: getStringValue(dataMap, "wireless_device_manufacturer"),
+			WirelessDeviceModel:        getStringValue(dataMap, "wireless_device_model"),
+			WirelessDeviceSwVersion:    getStringValue(dataMap, "wireless_device_sw_version"),
+			WirelessDeviceIdentifier:   getStringValue(dataMap, "wireless_device_identifier"),
+			WirelessDeviceProtocol:     strings.ToLower(getStringValue(dataMap, "wireless_device_protocol")),
+			WirelessDeviceConnection:   strings.ToLower(getStringValue(dataMap, "wireless_device_connection")),
+			WirelessDeviceAvailability: getStringValue(dataMap, "wireless_device_availability"),
+			WirelessDeviceBattery:      getStringValue(dataMap, "wireless_device_battery"),
+			WirelessDeviceDescription:  getStringValue(dataMap, "wireless_device_description"),
+			WirelessDeviceLastSeen:     getStringValue(dataMap, "wireless_device_last_seen"),
+		}
 
-			var wirelessDeviceProperties []*models.DeviceProperty
+		var wirelessDeviceProperties []*models.DeviceProperty
 
-			if _, ok := dataMap["properties"].(map[string]interface{}); ok {
-				// Convert the properties data to a JSON string
-				// Marshal the properties data
-				propertiesRawData, err := json.Marshal(dataMap["properties"])
-				if err != nil {
-					log.Errorf("Error converting Device Properties to JSON: %s", err.Error())
-					return
-				}
+		if propertiesData, ok := dataMap["device_properties"].([]interface{}); ok {
+			// Convert the properties data to a JSON string
+			// Marshal the properties data
+			log.Info("DEVICE PROPERTIES RECEIVED")
 
-				// Unmarshal the properties raw data into a map
-				var propertiesData []map[string]interface{}
-				err = json.Unmarshal(propertiesRawData, &propertiesData)
-				if err != nil {
-					log.Errorf("Error parsing JSON: %s", err.Error())
-					return
-				}
+			// propertiesRawData := propertiesData
+			// if err != nil {
+			// 	log.Errorf("Error converting Device Properties to JSON: %s", err.Error())
+			// 	return
+			// }
 
-				for _, propertyData := range propertiesData {
+			// // Unmarshal the properties raw data into a map
+			// var propertiesData []map[string]interface{}
+			// err = json.Unmarshal(propertiesRawData, &propertiesData)
+			// if err != nil {
+			// 	log.Errorf("Error parsing JSON: %s", err.Error())
+			// 	return
+			// }
+
+			for _, propertyDataItem := range propertiesData {
+				if propertyData, ok := propertyDataItem.(map[string]interface{}); ok {
+
+					// log.Info(propertyData)
+
 					wirelessDeviceProperty := models.DeviceProperty{
 						PropertyAccessMode:       getStringValue(propertyData, "property_access_mode"),
 						PropertyDescription:      getStringValue(propertyData, "property_description"),
 						PropertyIdentifier:       getStringValue(propertyData, "property_identifier"),
-						WirelessDeviceIdentifier: getStringValue(propertyData, "wireless_device_identifier"),
+						WirelessDeviceIdentifier: getStringValue(dataMap, "wireless_device_identifier"),
 						PropertyLastSeen:         getStringValue(propertyData, "property_last_seen"),
 						PropertyName:             getStringValue(propertyData, "property_name"),
 						PropertyReading:          getStringValue(propertyData, "property_reading"),
@@ -99,44 +105,52 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 					}
 
 					wirelessDeviceProperties = append(wirelessDeviceProperties, &wirelessDeviceProperty)
-				}
-
-			}
-
-			wirelessDevice.DeviceProperties = wirelessDeviceProperties
-
-			db, err := common.SQLiteConnect(common.DBFile)
-			if err != nil {
-				log.Errorf("Error openning sqlite database file: %s\n", err.Error())
-			}
-			defer db.Close()
-			if !isEndNodeDeviceRecordExists(db, wirelessDevice) {
-				err = saveWirelessDeviceData(wirelessDevice, db)
-				if err != nil {
-					log.Errorf("Error inserting end node device record to local sqlite database: %s\n", err.Error())
 				} else {
-					log.Info("End node device information inserted")
-				}
-			} else {
-
-				log.Info("End node device already exists, updating it")
-				err = updateEndNodeDevice(db, wirelessDevice)
-				if err != nil {
-					log.Errorf("Error updating end node device record in local sqlite database: %s\n", err.Error())
-				} else {
-					log.Info("End node device information updated")
+					log.Error("Invalid property data format")
 				}
 			}
 
-		} else {
-			log.Info("Device data not found in the JSON.")
 		}
+
+		wirelessDevice.DeviceProperties = wirelessDeviceProperties
+
+		db, err := common.SQLiteConnect(common.DBFile)
+		if err != nil {
+			log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+		}
+		defer db.Close()
+		if !isEndNodeDeviceRecordExists(db, wirelessDevice) {
+			err = saveWirelessDeviceData(wirelessDevice, db)
+			if err != nil {
+				log.Errorf("Error inserting end node device record to local sqlite database: %s\n", err.Error())
+			} else {
+				log.Info("End node device information inserted")
+			}
+		} else {
+
+			log.Info("End node device already exists, updating it")
+			err = updateEndNodeDevice(db, wirelessDevice)
+			if err != nil {
+				log.Errorf("Error updating end node device record in local sqlite database: %s\n", err.Error())
+			} else {
+				log.Info("End node device information updated")
+			}
+		}
+
+		// } else {
+		// 	log.Info("Device data not found in the JSON.")
+		// }
 	}
 
 }
 
 func PublishMQTT(client mqtt.Client, topic string, payLoad interface{}) error {
-	token := client.Publish(topic, 0, false, payLoad)
+	payloadJSONData, err := json.Marshal(payLoad)
+	if err != nil {
+		log.Errorf("Error marshaling JSON: %s\n", err)
+		return err
+	}
+	token := client.Publish(topic, 0, false, payloadJSONData)
 	if token.Error() != nil {
 		log.Errorf("Error publishing to topic: %s\n", token.Error())
 		return token.Error()
