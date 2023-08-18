@@ -33,9 +33,10 @@ func isEndNodeDeviceRecordExists(db *sql.DB, device models.WirelessDevice) bool 
 }
 
 func updateEndNodeDevice(db *sql.DB, device models.WirelessDevice) error {
+	log.Info("Update END NODE success updating End")
 
-	_, err := db.Exec("UPDATE wireless_device SET wireless_device_description=? WHERE wireless_device_name = ?  AND wireless_device_identifier=?",
-		device.WirelessDeviceDescription, device.WirelessDeviceName, device.WirelessDeviceIdentifier)
+	_, err := db.Exec("UPDATE wireless_device SET wireless_device_description=?, wireless_device_last_seen=?  WHERE wireless_device_name = ?  AND wireless_device_identifier=?",
+		device.WirelessDeviceDescription, device.WirelessDeviceLastSeen, device.WirelessDeviceName, device.WirelessDeviceIdentifier)
 	if err != nil {
 		log.Errorf("Error updating EndNode data: %s", err.Error())
 		return err
