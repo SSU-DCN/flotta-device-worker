@@ -3,6 +3,7 @@ package wireless
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/project-flotta/flotta-device-worker/internal/common"
 	"github.com/project-flotta/flotta-operator/models"
@@ -69,15 +70,62 @@ func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.Wireless
 	// if err != nil {
 	// 	return err
 	// }
+
+	var devicePropertiesData []map[string]interface{}
+	for _, property := range wirelessDeviceConfiguration.DeviceProperties {
+		propertyData := map[string]interface{}{
+			"property_access_mode":       property.PropertyAccessMode,
+			"property_description":       property.PropertyDescription,
+			"property_identifier":        property.PropertyIdentifier,
+			"wireless_device_identifier": property.WirelessDeviceIdentifier,
+			"property_last_seen":         property.PropertyLastSeen,
+			"property_name":              property.PropertyName,
+			"property_reading":           property.PropertyReading,
+			"property_service_uuid":      property.PropertyServiceUUID,
+			"property_state":             property.PropertyState,
+			"property_unit":              property.PropertyUnit,
+		}
+		devicePropertiesData = append(devicePropertiesData, propertyData)
+	}
+
 	data := map[string]interface{}{
 		"wireless_device_identifier": wirelessDeviceConfiguration.WirelessDeviceIdentifier,
 		"wireless_device_name":       wirelessDeviceConfiguration.WirelessDeviceName,
-		"device_info":                wirelessDeviceConfiguration,
+		"device_properties":          devicePropertiesData,
 	}
 
-	err = PublishMQTT(client, "cloud/device/downstream", data)
-	if err != nil {
-		return err
+	// fmt.Println("success")
+	// fmt.Println("success")
+	// fmt.Println("success")
+	// fmt.Println("Data in the 'data' map:")
+	// fmt.Println("Wireless Device Identifier:", data["wireless_device_identifier"])
+	// fmt.Println("Wireless Device Name:", data["wireless_device_name"])
+
+	// deviceProperties := data["device_properties"].([]map[string]interface{})
+	// if deviceProperties != nil {
+	// 	fmt.Println("Device Properties:")
+	// 	for idx, propertyData := range deviceProperties {
+	// 		fmt.Printf("Property %d:\n", idx+1)
+	// 		for key, value := range propertyData {
+	// 			fmt.Printf("  %s: %v\n", key, value)
+	// 		}
+	// 	}
+	// } else {
+	// 	fmt.Println("No device properties found in the data.")
+	// }
+
+	if wirelessDeviceConfiguration.WirelessDeviceConnection == strings.ToLower("wi-fi") || wirelessDeviceConfiguration.WirelessDeviceConnection == strings.ToLower("WIFI") {
+		err = PublishMQTT(client, "cloud/plugin/downstream/wifi", data)
+		if err != nil {
+			return err
+		}
+		return nil
+	} else {
+		err = PublishMQTT(client, "cloud/device/downstream", data)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
-	return nil
+
 }
