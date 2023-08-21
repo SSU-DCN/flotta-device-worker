@@ -52,6 +52,9 @@ func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB)
 	// log.Info("saving device properties")
 	// log.Info("device properties LENGTH: ", len(deviceProperties))
 	for _, deviceProperty := range deviceProperties {
+		if deviceProperty.PropertyName == "Service Changed" {
+			continue
+		}
 
 		insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state, property_unit, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?);"
 		_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, deviceProperty.PropertyReading, deviceProperty.PropertyState,

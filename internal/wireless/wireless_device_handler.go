@@ -133,7 +133,7 @@ func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.Wireless
 
 func SyncDBWirelessDevices(db *sql.DB, dbWirelessDevices []*models.DbWirelessDevice) error {
 	//remove old data and add new data
-	_, err := db.Exec("TRUNCATE known_device")
+	_, err := db.Exec("DELETE FROM known_device")
 	if err != nil {
 		log.Errorf("An error occured while truncating the dbwirelesss table: %s", err.Error())
 		return err
@@ -151,12 +151,6 @@ func SyncDBWirelessDevices(db *sql.DB, dbWirelessDevices []*models.DbWirelessDev
 }
 
 func FilterUnknownDevicesForRegistration(db *sql.DB, discoveredWirelessDevices []*models.DbWirelessDevice) error {
-	rows, err := db.Query("SELECT wireless_device_name,  wireless_device_identifier FROM known_device ")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
 	var verifiedDBDevices []*models.DbWirelessDevice
 
 	for _, device := range discoveredWirelessDevices {
@@ -175,6 +169,7 @@ func FilterUnknownDevicesForRegistration(db *sql.DB, discoveredWirelessDevices [
 			verifiedDBDevices = append(verifiedDBDevices, &verifiedDevice)
 		}
 	}
+
 	if len(verifiedDBDevices) > 0 {
 		client, err := common.MQTT_Connect()
 		if err != nil {
