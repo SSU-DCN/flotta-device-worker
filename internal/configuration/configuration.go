@@ -131,6 +131,7 @@ func (m *Manager) Update(message models.DeviceConfigurationMessage) error {
 	workloadsEqual := isEqualUnorderedWorkloadLists(message.Workloads, m.deviceConfiguration.Workloads)
 	secretsEqual := isEqualUnorderedSecretLists(message.Secrets, m.deviceConfiguration.Secrets)
 	_ = isEqualUnorderedWirelessDevices(db, message.Configuration.WirelessDevices)
+	dbWirelessDevices(db, message.Configuration.DbWirelessDevices)
 	m.lock.RUnlock()
 
 	log.Tracef("workloads equal: [%v]; configurationEqual: [%v]; secretsEqual: [%v]; DeviceID: [%s]", workloadsEqual, configurationEqual, secretsEqual, message.DeviceID)
@@ -280,4 +281,16 @@ func isEqualUnorderedWirelessDevices(db *sql.DB, ConfigurationReceivedWirelessDe
 		}
 	}
 	return true
+}
+
+func dbWirelessDevices(db *sql.DB, dbWirelessDevices []*models.DbWirelessDevice) {
+	db, err := common.SQLiteConnect(common.DBFile)
+	if err != nil {
+		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+	}
+	defer db.Close()
+	err = wireless.SyncDBWirelessDevices(db, dbWirelessDevices)
+	if err != nil {
+		log.Errorf("An error occured while syncing database wireless devices: %s ", err.Error())
+	}
 }

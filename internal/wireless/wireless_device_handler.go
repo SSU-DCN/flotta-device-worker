@@ -7,6 +7,7 @@ import (
 
 	"github.com/project-flotta/flotta-device-worker/internal/common"
 	"github.com/project-flotta/flotta-operator/models"
+	log "github.com/sirupsen/logrus"
 )
 
 func GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
@@ -128,4 +129,69 @@ func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.Wireless
 		return nil
 	}
 
+}
+
+func SyncDBWirelessDevices(db *sql.DB, dbWirelessDevices []*models.DbWirelessDevice) error {
+	//remove old data and add new data
+	_, err := db.Exec("TRUNCATE known_device")
+	if err != nil {
+		log.Errorf("An error occured while truncating the dbwirelesss table: %s", err.Error())
+		return err
+	}
+
+	for _, dbWirelessDevice := range dbWirelessDevices {
+		insertDbWirelessDeviceSQL := "INSERT INTO known_device (wireless_device_identifier, wireless_device_name) VALUES (?,?);"
+		_, err := db.Exec(insertDbWirelessDeviceSQL, dbWirelessDevice.WirelessDeviceIdentifier, dbWirelessDevice.WirelessDeviceName)
+		if err != nil {
+			log.Errorf("Error inserting dbwireless  data: %s", err.Error())
+			return err
+		}
+	}
+	return nil
+}
+
+func FilterUnknownDevicesForRegistration(db *sql.DB, discoveredWirelessDevices []*models.DbWirelessDevice) error {
+	rows, err := db.Query("SELECT wireless_device_name,  wireless_device_identifier FROM known_device ")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var verifiedDBDevices []*models.DbWirelessDevice
+
+	for _, device := range discoveredWirelessDevices {
+		var count int
+		err := db.QueryRow("SELECT COUNT(*) FROM known_device WHERE wireless_device_name = ? AND wireless_device_identifier=?", device.WirelessDeviceName, device.WirelessDeviceIdentifier).Scan(&count)
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+
+		if count > 0 {
+			verifiedDevice := models.DbWirelessDevice{
+				WirelessDeviceName:       device.WirelessDeviceName,
+				WirelessDeviceIdentifier: device.WirelessDeviceIdentifier,
+			}
+			verifiedDBDevices = append(verifiedDBDevices, &verifiedDevice)
+		}
+	}
+	if len(verifiedDBDevices) > 0 {
+		client, err := common.MQTT_Connect()
+		if err != nil {
+			fmt.Println("ERROR CONNECT MQTT: ", err.Error())
+			return err
+		}
+		err = PublishMQTT(client, "cloud/plugin/downstream/ble/devices/verified", verifiedDBDevices)
+		return err
+	}
+	return nil
+}
+
+func SearchPairDevceInDBWirelessDevice(slice []*models.DbWirelessDevice, targetName, targetIdentifiers string) bool {
+	for _, device := range slice {
+		if device.WirelessDeviceIdentifier == targetIdentifiers && device.WirelessDeviceName == targetName {
+			return true // Found the target DBWirelessDevice in the slice
+		}
+	}
+	return false // Target WirelessDevice not found in the slice
 }

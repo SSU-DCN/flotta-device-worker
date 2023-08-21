@@ -86,19 +86,18 @@ func SetupSqliteDB() {
 	}
 
 	// Create a table if it doesn't exist
-	// createTableSQL = `
-	// 	CREATE TABLE IF NOT EXISTS device_database (
-	// 		device_database_id INTEGER PRIMARY KEY AUTOINCREMENT,
-	// 		wireless_device_identifier TEXT NOT NULL,
-	// 		wireless_device_name TEXT NOT NULL,
-	// 		property_last_seen TEXT NULL
-	// 	);`
+	createTableSQL = `
+		CREATE TABLE IF NOT EXISTS known_device (
+			known_device_id INTEGER PRIMARY KEY AUTOINCREMENT,
+			wireless_device_identifier TEXT NOT NULL,
+			wireless_device_name TEXT NULL
+		);`
 
-	// _, err = db.Exec(createTableSQL)
-	// if err != nil {
-	// 	log.Errorf("Error creating table: %s \n", err.Error())
-	// 	return
-	// }
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		log.Errorf("Error creating table: %s \n", err.Error())
+		return
+	}
 
 	log.Info("Table created successfully or already exists!")
 }

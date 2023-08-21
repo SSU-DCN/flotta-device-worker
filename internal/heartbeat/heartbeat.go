@@ -107,36 +107,37 @@ func (s *HeartbeatData) RetrieveInfo() models.Heartbeat {
 	if err != nil {
 		log.Errorf("An error occured while getting connected wireless devices for HB: %s ", err.Error())
 	}
-	var i = 0
-	for _, item := range wirelessDevices {
-		fmt.Printf("Name: %s\n", item.WirelessDeviceName)
-		fmt.Printf("Manufacturer: %s\n", item.WirelessDeviceManufacturer)
-		fmt.Printf("Model: %s\n", item.WirelessDeviceModel)
-		fmt.Printf("Software Version: %s\n", item.WirelessDeviceSwVersion)
-		fmt.Printf("Identifiers: %s\n", item.WirelessDeviceIdentifier)
-		fmt.Printf("Protocol: %s\n", item.WirelessDeviceProtocol)
-		fmt.Printf("Connection: %s\n", item.WirelessDeviceConnection)
-		fmt.Printf("Battery: %s\n", item.WirelessDeviceBattery)
-		fmt.Printf("Availability: %s\n", item.WirelessDeviceAvailability)
-		fmt.Printf("Last Seen: %s\n", item.WirelessDeviceLastSeen)
-		fmt.Println("--------")
-		fmt.Println("Properties Length: ", len(item.DeviceProperties))
-		for _, property := range item.DeviceProperties {
-			fmt.Printf("Name: %s\n", property.PropertyName)
-			fmt.Printf("Access Mode: %s\n", property.PropertyAccessMode)
-			fmt.Printf("Reading: %s\n", property.PropertyReading)
-			fmt.Printf("State: %s\n", property.PropertyState)
+	/*
+		var i = 0
+		for _, item := range wirelessDevices {
+			fmt.Printf("Name: %s\n", item.WirelessDeviceName)
+			fmt.Printf("Manufacturer: %s\n", item.WirelessDeviceManufacturer)
+			fmt.Printf("Model: %s\n", item.WirelessDeviceModel)
+			fmt.Printf("Software Version: %s\n", item.WirelessDeviceSwVersion)
+			fmt.Printf("Identifiers: %s\n", item.WirelessDeviceIdentifier)
+			fmt.Printf("Protocol: %s\n", item.WirelessDeviceProtocol)
+			fmt.Printf("Connection: %s\n", item.WirelessDeviceConnection)
+			fmt.Printf("Battery: %s\n", item.WirelessDeviceBattery)
+			fmt.Printf("Availability: %s\n", item.WirelessDeviceAvailability)
+			fmt.Printf("Last Seen: %s\n", item.WirelessDeviceLastSeen)
+			fmt.Println("--------")
+			fmt.Println("Properties Length: ", len(item.DeviceProperties))
+			for _, property := range item.DeviceProperties {
+				fmt.Printf("Name: %s\n", property.PropertyName)
+				fmt.Printf("Access Mode: %s\n", property.PropertyAccessMode)
+				fmt.Printf("Reading: %s\n", property.PropertyReading)
+				fmt.Printf("State: %s\n", property.PropertyState)
+			}
+
+			fmt.Println("--------")
+
+			fmt.Println(i)
+			i++
 		}
 
-		fmt.Println("--------")
-
-		fmt.Println(i)
-		i++
-	}
-
-	fmt.Println("***************")
-	fmt.Println(len(wirelessDevices))
-
+		fmt.Println("***************")
+		fmt.Println(len(wirelessDevices))
+	*/
 	hardwareInfo.WirelessDevices = wirelessDevices
 
 	ansibleEvents := []*models.EventInfo{}

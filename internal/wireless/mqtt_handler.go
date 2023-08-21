@@ -36,6 +36,26 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 
 	if strings.Contains(msg.Topic(), "availability") {
 		log.Info("This is the availability topic, will do later!")
+	} else if msg.Topic() == "plugin/edge/upstream/ble/unpaired" {
+		log.Info("received unpaired devices")
+		//check the unpaired devices and return registered devices only for pairing and getting the properties
+		var discoveredWirelessDevices []*models.DbWirelessDevice
+		err := json.Unmarshal([]byte(msg.Payload()), &discoveredWirelessDevices)
+		if err != nil {
+			log.Errorf("Error parsing data in %s topic, Error: %s", msg.Topic(), err.Error())
+			return
+		}
+
+		db, err := common.SQLiteConnect(common.DBFile)
+		if err != nil {
+			log.Errorf("Error openning sqlite database file: %s\n", err.Error())
+		}
+		defer db.Close()
+		err = FilterUnknownDevicesForRegistration(db, discoveredWirelessDevices)
+		if err != nil {
+			log.Errorf("Error filtering discovered devices in %s topic, Error: %s", msg.Topic(), err.Error())
+			return
+		}
 	} else {
 
 		// Parse the received message (assuming it's in JSON format)
