@@ -195,7 +195,9 @@ func SetupSqliteDB() {
 		CREATE TABLE IF NOT EXISTS known_device (
 			known_device_id INTEGER PRIMARY KEY AUTO_INCREMENT,
 			wireless_device_identifier TEXT NOT NULL,
-			wireless_device_name TEXT NULL
+			wireless_device_name TEXT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP , 
+			updated_at DATETIME on update CURRENT_TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);`
 
 	_, err = db.Exec(createTableSQL)
@@ -204,6 +206,18 @@ func SetupSqliteDB() {
 		return
 	}
 
+	createTableSQL = `
+	CREATE TABLE IF NOT EXISTS last_sync (
+		last_sync_id INTEGER PRIMARY KEY NOT NULL AUTO_INCREMENT , 
+		last_sync_date_time DATETIME NOT NULL , 
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP , 
+		updated_at DATETIME on update CURRENT_TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);`
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		log.Errorf("Error creating table: %s \n", err.Error())
+		return
+	}
 	log.Info("Table created successfully or already exists!")
 }
 
