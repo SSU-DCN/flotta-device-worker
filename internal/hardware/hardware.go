@@ -59,7 +59,7 @@ func (s *HardwareInfo) GetHardwareImmutableInformation(hardwareInfo *models.Hard
 		hardwareInfo.HostDevices = hostDevices
 	}
 
-	db, err := common.SQLiteConnect(common.DBFile)
+	db, err := common.DbConnect(common.ConnectionInfo)
 	if err != nil {
 		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 	}
@@ -104,7 +104,7 @@ func (s *HardwareInfo) getHardwareMutableInformation(hardwareInfo *models.Hardwa
 
 	hardwareInfo.Mounts = mounts
 
-	db, err := common.SQLiteConnect(common.DBFile)
+	db, err := common.DbConnect(common.ConnectionInfo)
 	if err != nil {
 		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 	}

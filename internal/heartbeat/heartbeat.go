@@ -98,7 +98,7 @@ func (s *HeartbeatData) RetrieveInfo() models.Heartbeat {
 		hardwareInfo = s.buildHardwareInfo()
 	}
 
-	db, err := common.SQLiteConnect(common.DBFile)
+	db, err := common.DbConnect(common.ConnectionInfo)
 	if err != nil {
 		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 	}
@@ -323,7 +323,7 @@ func (s *Heartbeat) getInterval(config models.DeviceConfiguration) int64 {
 func (s *Heartbeat) pushInformation() error {
 	// Create a data message to send back to the dispatcher.
 	heartbeatInfo := s.data.RetrieveInfo()
-	// db, err := common.SQLiteConnect(common.DBFile)
+	// db, err := common.DbConnect(common.ConnectionInfo)
 	// if err != nil {
 	// 	log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 	// }

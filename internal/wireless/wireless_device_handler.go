@@ -147,6 +147,7 @@ func SyncDBWirelessDevices(db *sql.DB, dbWirelessDevices []*models.DbWirelessDev
 			return err
 		}
 	}
+	defer db.Close()
 	return nil
 }
 
@@ -179,6 +180,7 @@ func FilterUnknownDevicesForRegistration(db *sql.DB, discoveredWirelessDevices [
 		err = PublishMQTT(client, "cloud/plugin/downstream/ble/devices/verified", verifiedDBDevices)
 		return err
 	}
+	defer db.Close()
 	return nil
 }
 

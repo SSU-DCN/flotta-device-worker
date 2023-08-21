@@ -102,6 +102,7 @@ require (
 	github.com/go-openapi/runtime v0.23.1 // indirect
 	github.com/go-openapi/spec v0.20.4 // indirect
 	github.com/go-openapi/validate v0.21.0 // indirect
+	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -129,6 +130,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.15.6 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/linode/linodego v1.5.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/manifoldco/promptui v0.9.0 // indirect
@@ -217,12 +219,12 @@ replace (
 	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 	github.com/containers/buildah => github.com/containers/buildah v1.23.1
 	github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.3-0.20220114050600-8b9d41f48198
+	github.com/project-flotta/flotta-operator => ../flotta-operator
+	github.com/project-flotta/flotta-operator/models => ../flotta-operator/models
 	k8s.io/apimachinery => k8s.io/apimachinery v0.22.4
 	k8s.io/client-go => k8s.io/client-go v0.21.0
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
 	sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20201022175424-d30c7a274820
 	sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20201016155852-4090a6970205
-	github.com/project-flotta/flotta-operator => ../flotta-operator
-	github.com/project-flotta/flotta-operator/models => ../flotta-operator/models
 
 )

@@ -120,7 +120,7 @@ func (m *Manager) GetSecrets() models.SecretList {
 func (m *Manager) Update(message models.DeviceConfigurationMessage) error {
 
 	// log.Info("WE ARE IN THE UPDATE FUNCTION FROM DEVICE SERVER PART")
-	db, err := common.SQLiteConnect(common.DBFile)
+	db, err := common.DbConnect(common.ConnectionInfo)
 	if err != nil {
 		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 	}
@@ -256,7 +256,7 @@ func isEqualUnorderedWorkloadLists(x models.WorkloadList, y models.WorkloadList)
 func isEqualUnorderedWirelessDevices(db *sql.DB, ConfigurationReceivedWirelessDevices []*models.WirelessDevice) bool {
 	// nil and empty lists are considered equal. it's the contents that we care about
 	if len(ConfigurationReceivedWirelessDevices) > 0 {
-		db, err := common.SQLiteConnect(common.DBFile)
+		db, err := common.DbConnect(common.ConnectionInfo)
 		if err != nil {
 			log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 		}
@@ -284,7 +284,7 @@ func isEqualUnorderedWirelessDevices(db *sql.DB, ConfigurationReceivedWirelessDe
 }
 
 func dbWirelessDevices(db *sql.DB, dbWirelessDevices []*models.DbWirelessDevice) {
-	db, err := common.SQLiteConnect(common.DBFile)
+	db, err := common.DbConnect(common.ConnectionInfo)
 	if err != nil {
 		log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 	}

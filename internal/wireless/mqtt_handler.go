@@ -46,7 +46,7 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 			return
 		}
 
-		db, err := common.SQLiteConnect(common.DBFile)
+		db, err := common.DbConnect(common.ConnectionInfo)
 		if err != nil {
 			log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 		}
@@ -134,7 +134,7 @@ func OnMessageReceived(client mqtt.Client, msg mqtt.Message) {
 
 		wirelessDevice.DeviceProperties = wirelessDeviceProperties
 
-		db, err := common.SQLiteConnect(common.DBFile)
+		db, err := common.DbConnect(common.ConnectionInfo)
 		if err != nil {
 			log.Errorf("Error openning sqlite database file: %s\n", err.Error())
 		}

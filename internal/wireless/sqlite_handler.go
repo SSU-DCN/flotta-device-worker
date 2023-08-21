@@ -64,6 +64,7 @@ func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB)
 			return err
 		}
 	}
+	defer db.Close()
 	return nil
 }
 
@@ -91,6 +92,7 @@ func GetEndNodeDeviceTopic(db *sql.DB, identifier string) (string, error) {
 		}
 		return "", err
 	}
+	defer db.Close()
 
 	return result, nil
 }
