@@ -3,6 +3,7 @@ package wireless
 import (
 	"database/sql"
 	"fmt"
+	"unicode"
 
 	"github.com/project-flotta/flotta-operator/models"
 	log "github.com/sirupsen/logrus"
@@ -51,17 +52,41 @@ func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB)
 
 	// log.Info("saving device properties")
 	// log.Info("device properties LENGTH: ", len(deviceProperties))
+	//separate device property reading and its unit
 	for _, deviceProperty := range deviceProperties {
 		if deviceProperty.PropertyName == "Service Changed" {
 			continue
 		}
 
-		insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state, property_unit, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?);"
-		_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, deviceProperty.PropertyReading, deviceProperty.PropertyState,
-			deviceProperty.PropertyUnit, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen)
-		if err != nil {
-			log.Errorf("Error inserting device property  data: %s", err.Error())
-			return err
+		if deviceProperty.PropertyAccessMode == "Read" {
+			property_unit := ""
+			property_reading := ""
+			if deviceProperty.PropertyUnit == "" {
+				log.Infof("PROPERTY UNIT INISDE: %s, READING: %s", property_unit, property_reading)
+				measurement := deviceProperty.PropertyReading
+				property_reading, property_unit, _ = separateMeasurement(measurement)
+			} else {
+				property_unit = deviceProperty.PropertyUnit
+				property_reading = deviceProperty.PropertyReading
+			}
+
+			log.Infof("PROPERTY UNIT OUTSIDE: %s, READING: %s", property_unit, property_reading)
+
+			insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading,property_state, property_unit, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?);"
+			_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, property_reading, deviceProperty.PropertyState,
+				property_unit, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen)
+			if err != nil {
+				log.Errorf("Error inserting device property  data: %s", err.Error())
+				return err
+			}
+		} else {
+
+			insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state,property_unit, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?);"
+			_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, deviceProperty.PropertyReading, deviceProperty.PropertyState, deviceProperty.PropertyUnit, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen)
+			if err != nil {
+				log.Errorf("Error inserting device property  data: %s", err.Error())
+				return err
+			}
 		}
 	}
 	defer db.Close()
@@ -78,21 +103,23 @@ func getStringValue(m map[string]interface{}, key string) string {
 	return ""
 }
 
-func GetEndNodeDeviceTopic(db *sql.DB, identifier string) (string, error) {
-	var result string
+func separateMeasurement(input string) (string, string, error) {
+	var valueStr string
+	var unitStr string
 
-	query := "SELECT topic FROM wireless_device WHERE identifiers=? LIMIT 1"
-
-	err := db.QueryRow(query, identifier).Scan(&result)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// No matching record found.
-			return "", fmt.Errorf("no matching record found for identifiers: %s", identifier)
+	for _, char := range input {
+		if unicode.IsDigit(char) || char == '.' {
+			valueStr += string(char)
+		} else {
+			unitStr += string(char)
 		}
-		return "", err
 	}
-	defer db.Close()
 
-	return result, nil
+	if valueStr == "" || unitStr == "" {
+		log.Error("Error processing measurement '%s': %s\n", valueStr, unitStr)
+
+		return "", "", fmt.Errorf("invalid measurement format")
+	}
+
+	return valueStr, unitStr, nil
 }

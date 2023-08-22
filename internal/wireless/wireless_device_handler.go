@@ -133,7 +133,8 @@ func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.Wireless
 
 func SyncDBWirelessDevices(db *sql.DB, dbWirelessDevices []*models.DbWirelessDevice) error {
 	//remove old data and add new data
-	_, err := db.Exec("DELETE FROM known_device")
+	// _, err := db.Exec("DELETE FROM known_device")
+	_, err := db.Exec("TRUNCATE TABLE known_device")
 	if err != nil {
 		log.Errorf("An error occured while truncating the dbwirelesss table: %s", err.Error())
 		return err
