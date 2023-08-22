@@ -62,7 +62,7 @@ func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB)
 			property_unit := ""
 			property_reading := ""
 			if deviceProperty.PropertyUnit == "" {
-				log.Infof("PROPERTY UNIT INISDE: %s, READING: %s", property_unit, property_reading)
+				// log.Infof("PROPERTY UNIT INISDE: %s, READING: %s", property_unit, property_reading)
 				measurement := deviceProperty.PropertyReading
 				property_reading, property_unit, _ = separateMeasurement(measurement)
 			} else {
@@ -70,7 +70,7 @@ func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB)
 				property_reading = deviceProperty.PropertyReading
 			}
 
-			log.Infof("PROPERTY UNIT OUTSIDE: %s, READING: %s", property_unit, property_reading)
+			// log.Infof("PROPERTY UNIT OUTSIDE: %s, READING: %s", property_unit, property_reading)
 
 			insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading,property_state, property_unit, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?);"
 			_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, property_reading, deviceProperty.PropertyState,
