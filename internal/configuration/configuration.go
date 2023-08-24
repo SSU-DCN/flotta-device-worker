@@ -270,7 +270,7 @@ func isEqualUnorderedWirelessDevices(db *sql.DB, ConfigurationReceivedWirelessDe
 			for _, receivedFromConfigDevice := range ConfigurationReceivedWirelessDevices {
 				if sqliteDevice.WirelessDeviceIdentifier == receivedFromConfigDevice.WirelessDeviceIdentifier {
 
-					err = wireless.ActionForDownStream(db, *receivedFromConfigDevice)
+					err = wireless.ActionForDownStream(db, *sqliteDevice, *receivedFromConfigDevice)
 					if err != nil {
 						log.Errorf("Failed to send action to device: %s Protocol: %s Connection: Error: %s", receivedFromConfigDevice.WirelessDeviceProtocol, receivedFromConfigDevice.WirelessDeviceConnection, err.Error())
 					}

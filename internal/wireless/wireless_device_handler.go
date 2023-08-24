@@ -59,7 +59,7 @@ func GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
 	return items, nil
 }
 
-func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.WirelessDevice) error {
+func ActionForDownStream(db *sql.DB, sqlDevice models.WirelessDevice, receivedFromConfigDevice models.WirelessDevice) error {
 
 	client, err := common.MQTT_Connect()
 	if err != nil {
@@ -73,7 +73,23 @@ func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.Wireless
 	// }
 
 	var devicePropertiesData []map[string]interface{}
-	for _, property := range wirelessDeviceConfiguration.DeviceProperties {
+	for _, property := range receivedFromConfigDevice.DeviceProperties {
+		sqlDeviceProperty, isExist := SearchPairDevicePropertyInDBProperty(sqlDevice.DeviceProperties, property.PropertyIdentifier)
+		//device properties should match the cluster stored status
+		if isExist {
+			if property.PropertyActiveStatus != "" && len(property.PropertyActiveStatus) > 0 {
+				if sqlDeviceProperty.PropertyActiveStatus != property.PropertyActiveStatus {
+					_, err := db.Exec("UPDATE device_property SET property_active_status=?  WHERE property_identifier = ?  AND wireless_device_identifier=?",
+						property.PropertyActiveStatus, property.PropertyIdentifier, property.WirelessDeviceIdentifier)
+					if err != nil {
+						log.Errorf("Error updating device property data before publishing: %s", err.Error())
+						return err
+					}
+				}
+			}
+
+		}
+
 		propertyData := map[string]interface{}{
 			"property_access_mode":       property.PropertyAccessMode,
 			"property_description":       property.PropertyDescription,
@@ -85,37 +101,18 @@ func ActionForDownStream(db *sql.DB, wirelessDeviceConfiguration models.Wireless
 			"property_service_uuid":      property.PropertyServiceUUID,
 			"property_state":             property.PropertyState,
 			"property_unit":              property.PropertyUnit,
+			"property_active_status":     property.PropertyActiveStatus,
 		}
 		devicePropertiesData = append(devicePropertiesData, propertyData)
 	}
 
 	data := map[string]interface{}{
-		"wireless_device_identifier": wirelessDeviceConfiguration.WirelessDeviceIdentifier,
-		"wireless_device_name":       wirelessDeviceConfiguration.WirelessDeviceName,
+		"wireless_device_identifier": receivedFromConfigDevice.WirelessDeviceIdentifier,
+		"wireless_device_name":       receivedFromConfigDevice.WirelessDeviceName,
 		"device_properties":          devicePropertiesData,
 	}
 
-	// fmt.Println("success")
-	// fmt.Println("success")
-	// fmt.Println("success")
-	// fmt.Println("Data in the 'data' map:")
-	// fmt.Println("Wireless Device Identifier:", data["wireless_device_identifier"])
-	// fmt.Println("Wireless Device Name:", data["wireless_device_name"])
-
-	// deviceProperties := data["device_properties"].([]map[string]interface{})
-	// if deviceProperties != nil {
-	// 	fmt.Println("Device Properties:")
-	// 	for idx, propertyData := range deviceProperties {
-	// 		fmt.Printf("Property %d:\n", idx+1)
-	// 		for key, value := range propertyData {
-	// 			fmt.Printf("  %s: %v\n", key, value)
-	// 		}
-	// 	}
-	// } else {
-	// 	fmt.Println("No device properties found in the data.")
-	// }
-
-	if wirelessDeviceConfiguration.WirelessDeviceConnection == strings.ToLower("wi-fi") || wirelessDeviceConfiguration.WirelessDeviceConnection == strings.ToLower("WIFI") {
+	if receivedFromConfigDevice.WirelessDeviceConnection == strings.ToLower("wi-fi") || receivedFromConfigDevice.WirelessDeviceConnection == strings.ToLower("WIFI") {
 		err = PublishMQTT(client, "cloud/plugin/downstream/wifi", data)
 		if err != nil {
 			return err
@@ -192,4 +189,13 @@ func SearchPairDevceInDBWirelessDevice(slice []*models.DbWirelessDevice, targetN
 		}
 	}
 	return false // Target WirelessDevice not found in the slice
+}
+
+func SearchPairDevicePropertyInDBProperty(slice []*models.DeviceProperty, targetIdentifiers string) (models.DeviceProperty, bool) {
+	for _, device := range slice {
+		if device.PropertyIdentifier == targetIdentifiers {
+			return *device, true // Found the target DBWirelessDevice in the slice
+		}
+	}
+	return models.DeviceProperty{}, false // Target WirelessDevice not found in the slice
 }
