@@ -143,7 +143,7 @@ func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB)
 
 				if isDevicePropertyActivated(db, deviceProperty.PropertyIdentifier) {
 
-					_, err := db.Exec("UPDATE device_property SET property_service_uuid =?, property_name=?, property_access_mode=?, property_reading=?,property_description=?,property_last_seen=?  WHERE property_identifier = ?  AND wireless_device_identifier=?",
+					_, err := db.Exec("UPDATE device_property SET property_service_uuid =?, property_name=?, property_access_mode=?, property_state=?,property_description=?,property_last_seen=?  WHERE property_identifier = ?  AND wireless_device_identifier=?",
 						deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, deviceProperty.PropertyState, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen, deviceProperty.PropertyIdentifier, deviceProperty.WirelessDeviceIdentifier)
 					if err != nil {
 						log.Errorf("Error updating device property data switch: %s", err.Error())
