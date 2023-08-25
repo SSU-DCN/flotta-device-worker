@@ -31,16 +31,59 @@ func GetConnectedWirelessDevices(db *sql.DB) ([]*models.WirelessDevice, error) {
 
 		//get device properties
 		// rowProperties, err := db.Query("SELECT wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state, property_unit, property_description,  property_last_seen FROM device_property WHERE wireless_device_identifier = '" + item.WirelessDeviceIdentifier + "' GROUP BY property_identifier ORDER BY device_property_id DESC")
-		rowProperties, err := db.Query("SELECT dp.wireless_device_identifier, dp.property_identifier, dp.property_service_uuid, dp.property_name, dp.property_access_mode, dp.property_reading, dp.property_state, dp.property_unit, dp.property_description,  dp.property_last_seen FROM device_property dp JOIN (SELECT property_identifier,MAX(device_property_id) AS max_device_property_id FROM device_property WHERE wireless_device_identifier = '" + item.WirelessDeviceIdentifier + "' GROUP BY property_identifier) max_ids ON dp.property_identifier = max_ids.property_identifier AND dp.device_property_id = max_ids.max_device_property_id;")
+		rowProperties, err := db.Query("SELECT dp.wireless_device_identifier, dp.property_identifier, dp.property_service_uuid, dp.property_name, dp.property_access_mode, dp.property_reading, dp.property_state, dp.property_unit, dp.property_description,  dp.property_last_seen, dp.property_active_status FROM device_property dp JOIN (SELECT property_identifier,MAX(device_property_id) AS max_device_property_id FROM device_property WHERE wireless_device_identifier = '" + item.WirelessDeviceIdentifier + "' GROUP BY property_identifier) max_ids ON dp.property_identifier = max_ids.property_identifier AND dp.device_property_id = max_ids.max_device_property_id;")
 		if err != nil {
 			return nil, err
 		}
 		defer rowProperties.Close()
 		for rowProperties.Next() {
+			var property_service_uuid sql.NullString
+			var property_reading sql.NullString
+			var property_state sql.NullString
+			var property_unit sql.NullString
+			var property_description sql.NullString
+			var property_last_seen sql.NullString
+
 			property := &models.DeviceProperty{}
-			err := rowProperties.Scan(&property.WirelessDeviceIdentifier, &property.PropertyIdentifier, &property.PropertyServiceUUID, &property.PropertyName, &property.PropertyAccessMode, &property.PropertyReading, &property.PropertyState, &property.PropertyUnit, &property.PropertyDescription, &property.PropertyLastSeen)
+			err := rowProperties.Scan(&property.WirelessDeviceIdentifier, &property.PropertyIdentifier, &property_service_uuid, &property.PropertyName, &property.PropertyAccessMode, &property_reading, &property_state, &property_unit, &property_description, &property_last_seen, &property.PropertyActiveStatus)
 			if err != nil {
 				return nil, err
+			}
+
+			if property_service_uuid.Valid { // Check if the value is not NULL
+				property.PropertyState = property_service_uuid.String // Assign the value to your property struct
+			} else {
+				property.PropertyState = "" // Handle NULL case, you can assign any default value here
+			}
+
+			if property_reading.Valid { // Check if the value is not NULL
+				property.PropertyReading = property_reading.String // Assign the value to your property struct
+			} else {
+				property.PropertyReading = "" // Handle NULL case, you can assign any default value here
+			}
+
+			if property_state.Valid { // Check if the value is not NULL
+				property.PropertyState = property_state.String // Assign the value to your property struct
+			} else {
+				property.PropertyState = "" // Handle NULL case, you can assign any default value here
+			}
+
+			if property_unit.Valid { // Check if the value is not NULL
+				property.PropertyUnit = property_unit.String // Assign the value to your property struct
+			} else {
+				property.PropertyUnit = "" // Handle NULL case, you can assign any default value here
+			}
+
+			if property_description.Valid { // Check if the value is not NULL
+				property.PropertyDescription = property_description.String // Assign the value to your property struct
+			} else {
+				property.PropertyDescription = "" // Handle NULL case, you can assign any default value here
+			}
+
+			if property_last_seen.Valid { // Check if the value is not NULL
+				property.PropertyLastSeen = property_last_seen.String // Assign the value to your property struct
+			} else {
+				property.PropertyLastSeen = "" // Handle NULL case, you can assign any default value here
 			}
 
 			deviceProperties = append(deviceProperties, property)

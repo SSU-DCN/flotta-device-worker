@@ -166,7 +166,6 @@ func SetupSqliteDB() {
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
 		log.Errorf("Error creating table: %s \n", err.Error())
-		return
 	}
 
 	// Create a table if it doesn't exist
@@ -185,7 +184,6 @@ func SetupSqliteDB() {
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
 		log.Errorf("Error creating table: %s \n", err.Error())
-		return
 	}
 
 	// Create a table if it doesn't exist
@@ -204,20 +202,7 @@ func SetupSqliteDB() {
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
 		log.Errorf("Error creating table: %s \n", err.Error())
-		return
-	}
 
-	createTableSQL = `
-	CREATE TABLE IF NOT EXISTS last_sync (
-		last_sync_id INTEGER PRIMARY KEY NOT NULL AUTO_INCREMENT , 
-		last_sync_date_time DATETIME NOT NULL , 
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP , 
-		updated_at DATETIME on update CURRENT_TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-	);`
-	_, err = db.Exec(createTableSQL)
-	if err != nil {
-		log.Errorf("Error creating table: %s \n", err.Error())
-		return
 	}
 
 	createTableSQL = `
@@ -233,7 +218,7 @@ func SetupSqliteDB() {
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
 		log.Errorf("Error creating table: %s \n", err.Error())
-		return
+
 	}
 
 	createTableSQL = `
@@ -255,7 +240,7 @@ func SetupSqliteDB() {
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
 		log.Errorf("Error creating table: %s \n", err.Error())
-		return
+
 	}
 
 	createTableSQL = `
@@ -279,8 +264,8 @@ func SetupSqliteDB() {
 	`
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
-		log.Errorf("Error creating table: %s \n", err.Error())
-		return
+		log.Errorf("Error creating wireless table: %s \n", err.Error())
+
 	}
 
 	log.Info("Table created successfully or already exists!")

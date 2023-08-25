@@ -69,68 +69,95 @@ func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB)
 			continue
 		}
 
-		if strings.ToLower(deviceProperty.PropertyActiveStatus) == "activated" {
-			if deviceProperty.PropertyAccessMode == "Read" {
-				property_unit := ""
-				property_reading := ""
-				if deviceProperty.PropertyUnit == "" {
-					// log.Infof("PROPERTY UNIT INISDE: %s, READING: %s", property_unit, property_reading)
-					measurement := deviceProperty.PropertyReading
-					property_reading, property_unit, _ = separateMeasurement(measurement)
-				} else {
-					property_unit = deviceProperty.PropertyUnit
-					property_reading = deviceProperty.PropertyReading
-				}
+		// log.Info("DEVICE IS ACTIVATED")
 
-				// log.Infof("PROPERTY UNIT OUTSIDE: %s, READING: %s", property_unit, property_reading)
-
-				if !isEndNodePropertyDeviceRecordExists(db, deviceProperty.PropertyIdentifier, deviceProperty.WirelessDeviceIdentifier) {
-					insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode,property_unit, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?);"
-					_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, property_reading,
-						property_unit, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen)
-					if err != nil {
-						log.Errorf("Error inserting device property: %s", err.Error())
-						return err
-					}
-
-					insertWirelessDevicePropertyDataSQL := "INSERT INTO device_property_data ( property_identifier,  property_reading, property_last_seen) VALUES (?,?,?,?);"
-					_, err = db.Exec(insertWirelessDevicePropertyDataSQL, deviceProperty.PropertyIdentifier, property_reading, deviceProperty.PropertyLastSeen)
-					if err != nil {
-						log.Errorf("Error inserting device property data: %s", err.Error())
-						return err
-					}
-				} else {
-
-					_, err := db.Exec("UPDATE device_property SET property_service_uuid =?, property_name=?, property_access_mode=?, property_reading=?,property_unit=?,property_description=?,property_last_seen, property_active_status=?  WHERE property_identifier = ?  AND wireless_device_identifier=?",
-						deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, property_reading, property_unit, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen, deviceProperty.PropertyActiveStatus, deviceProperty.PropertyIdentifier, deviceProperty.WirelessDeviceIdentifier)
-					if err != nil {
-						log.Errorf("Error updating device property data: %s", err.Error())
-						return err
-					}
-
-					insertWirelessDevicePropertyDataSQL := "INSERT INTO device_property_data ( property_identifier,  property_reading, property_last_seen) VALUES (?,?,?,?);"
-					_, err = db.Exec(insertWirelessDevicePropertyDataSQL, deviceProperty.PropertyIdentifier, property_reading, deviceProperty.PropertyLastSeen)
-					if err != nil {
-						log.Errorf("Error inserting device property data: %s", err.Error())
-						return err
-					}
-				}
-
+		if strings.ToLower(deviceProperty.PropertyAccessMode) == "read" {
+			property_unit := ""
+			property_reading := ""
+			if deviceProperty.PropertyUnit == "" {
+				// log.Infof("PROPERTY UNIT INISDE: %s, READING: %s", property_unit, property_reading)
+				measurement := deviceProperty.PropertyReading
+				property_reading, property_unit, _ = separateMeasurement(measurement)
 			} else {
+				property_unit = deviceProperty.PropertyUnit
+				property_reading = deviceProperty.PropertyReading
+			}
 
-				insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_state,  property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?,?);"
-				_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, deviceProperty.PropertyState, deviceProperty.PropertyState,
-					deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen)
+			// log.Infof("PROPERTY UNIT OUTSIDE: %s, READING: %s", property_unit, property_reading)
+
+			if !isEndNodePropertyDeviceRecordExists(db, deviceProperty.PropertyIdentifier, deviceProperty.WirelessDeviceIdentifier) {
+				insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode,property_reading, property_unit, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?,?);"
+				_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, property_reading,
+					property_unit, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen)
 				if err != nil {
 					log.Errorf("Error inserting device property: %s", err.Error())
 					return err
 				}
 
-				insertWirelessDevicePropertyDataSQL := "INSERT INTO device_property_data ( property_identifier,property_state, property_last_seen) VALUES (?,?,?,?);"
-				_, err = db.Exec(insertWirelessDevicePropertyDataSQL, deviceProperty.PropertyIdentifier, deviceProperty.PropertyState, deviceProperty.PropertyLastSeen)
+				insertWirelessDevicePropertyDataSQL := "INSERT INTO device_property_data ( property_identifier,  property_reading, property_last_seen) VALUES (?,?,?);"
+				_, err = db.Exec(insertWirelessDevicePropertyDataSQL, deviceProperty.PropertyIdentifier, property_reading, deviceProperty.PropertyLastSeen)
 				if err != nil {
 					log.Errorf("Error inserting device property data: %s", err.Error())
 					return err
+				}
+			} else {
+
+				if isDevicePropertyActivated(db, deviceProperty.PropertyIdentifier) {
+
+					_, err := db.Exec("UPDATE device_property SET property_service_uuid =?, property_name=?, property_access_mode=?, property_reading=?,property_unit=?,property_description=?,property_last_seen=?  WHERE property_identifier = ?  AND wireless_device_identifier=?",
+						deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, property_reading, property_unit, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen, deviceProperty.PropertyIdentifier, deviceProperty.WirelessDeviceIdentifier)
+					if err != nil {
+						log.Errorf("Error updating device property data: %s", err.Error())
+						return err
+					}
+
+					insertWirelessDevicePropertyDataSQL := "INSERT INTO device_property_data ( property_identifier,  property_reading, property_last_seen) VALUES (?,?,?);"
+					_, err = db.Exec(insertWirelessDevicePropertyDataSQL, deviceProperty.PropertyIdentifier, property_reading, deviceProperty.PropertyLastSeen)
+					if err != nil {
+						log.Errorf("Error inserting device property data: %s", err.Error())
+						return err
+					}
+				} else {
+					log.Info("DEVICE property MIGHT NOT BE activated yet")
+				}
+			}
+
+		} else {
+
+			if !isEndNodePropertyDeviceRecordExists(db, deviceProperty.PropertyIdentifier, deviceProperty.WirelessDeviceIdentifier) {
+				insertWirelessDevicePropertySQL := "INSERT INTO device_property (wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode,property_state, property_description,  property_last_seen) VALUES (?,?,?,?,?,?,?,?);"
+				_, err := db.Exec(insertWirelessDevicePropertySQL, deviceProperty.WirelessDeviceIdentifier, deviceProperty.PropertyIdentifier, deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, deviceProperty.PropertyState,
+					deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen)
+				if err != nil {
+					log.Errorf("Error inserting device property switch: %s", err.Error())
+					return err
+				}
+
+				insertWirelessDevicePropertyDataSQL := "INSERT INTO device_property_data ( property_identifier,  property_state, property_last_seen) VALUES (?,?,?);"
+				_, err = db.Exec(insertWirelessDevicePropertyDataSQL, deviceProperty.PropertyIdentifier, deviceProperty.PropertyState, deviceProperty.PropertyLastSeen)
+				if err != nil {
+					log.Errorf("Error inserting device property data switch: %s", err.Error())
+					return err
+				}
+			} else {
+
+				if isDevicePropertyActivated(db, deviceProperty.PropertyIdentifier) {
+
+					_, err := db.Exec("UPDATE device_property SET property_service_uuid =?, property_name=?, property_access_mode=?, property_reading=?,property_description=?,property_last_seen=?  WHERE property_identifier = ?  AND wireless_device_identifier=?",
+						deviceProperty.PropertyServiceUUID, deviceProperty.PropertyName, deviceProperty.PropertyAccessMode, deviceProperty.PropertyState, deviceProperty.PropertyDescription, deviceProperty.PropertyLastSeen, deviceProperty.PropertyIdentifier, deviceProperty.WirelessDeviceIdentifier)
+					if err != nil {
+						log.Errorf("Error updating device property data switch: %s", err.Error())
+						return err
+					}
+
+					insertWirelessDevicePropertyDataSQL := "INSERT INTO device_property_data ( property_identifier,  property_state, property_last_seen) VALUES (?,?,?);"
+					_, err = db.Exec(insertWirelessDevicePropertyDataSQL, deviceProperty.PropertyIdentifier, deviceProperty.PropertyState, deviceProperty.PropertyLastSeen)
+					if err != nil {
+						log.Errorf("Error inserting device property data switch: %s", err.Error())
+						return err
+					}
+				} else {
+					log.Info("DEVICE property switch MIGHT NOT BE activated yet")
 				}
 			}
 		}
@@ -138,6 +165,38 @@ func saveDeviceProperties(deviceProperties []*models.DeviceProperty, db *sql.DB)
 	}
 	defer db.Close()
 	return nil
+}
+
+func isDevicePropertyActivated(db *sql.DB, property_identifier string) bool {
+	rows, err := db.Query("SELECT wireless_device_identifier, property_identifier, property_service_uuid, property_name, property_access_mode, property_reading, property_state, property_unit, property_description,  property_last_seen,property_active_status FROM device_property  WHERE property_identifier = '" + property_identifier + "' ")
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		property := &models.DeviceProperty{}
+		var property_service_uuid sql.NullString
+		var property_reading sql.NullString
+		var property_state sql.NullString
+		var property_unit sql.NullString
+		var property_description sql.NullString
+		var property_last_seen sql.NullString
+
+		err := rows.Scan(&property.WirelessDeviceIdentifier, &property.PropertyIdentifier, &property_service_uuid, &property.PropertyName, &property.PropertyAccessMode, &property_reading, &property_state, &property_unit, &property_description, &property_last_seen, &property.PropertyActiveStatus)
+		if err != nil {
+			return false
+		}
+
+		if property.PropertyIdentifier == property_identifier && strings.ToLower(property.PropertyActiveStatus) == "activated" {
+			// log.Info("IN THE LOO[P] IF STATEMENT: ")
+			return true
+		}
+	}
+
+	// log.Error("MAYBE DEVICE DOES NOT EXIST. error CXHEKC: ")
+	return false
+
 }
 
 // getStringValue is a helper function to safely retrieve string values from a map
